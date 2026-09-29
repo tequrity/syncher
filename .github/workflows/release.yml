@@ -37,7 +37,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          notes=$(awk -v v="${GITHUB_REF_NAME}" '$0 ~ "^## \\[" v "\\]" {f=1; next} f && /^## \[/ {exit} f' CHANGELOG.md)
+          notes=$(awk -v v="${GITHUB_REF_NAME}" 'index($0, "## [" v "]") == 1 {f=1; next} f && index($0, "## [") == 1 {exit} f' CHANGELOG.md)
           gh release create "${GITHUB_REF_NAME}" \
             --title "Obsyncher ${GITHUB_REF_NAME}" \
             --notes "$notes" \
