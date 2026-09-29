@@ -67,7 +67,7 @@ export class SyncEngine {
 	private lastHeartbeat = 0;
 	private heartbeatBusy = false;
 	private createChain: Promise<unknown> = Promise.resolve();
-	private saveTimer?: ReturnType<typeof setTimeout>;
+	private saveTimer?: number;
 	private stateDirty = false;
 	private noDeletes = false;
 	/** items that currently cannot be synced: path -> reason */
@@ -196,7 +196,7 @@ export class SyncEngine {
 	}
 
 	async flush(): Promise<void> {
-		if (this.saveTimer) clearTimeout(this.saveTimer);
+		if (this.saveTimer) window.clearTimeout(this.saveTimer);
 		this.saveTimer = undefined;
 		if (this.stateDirty) {
 			this.stateDirty = false;
@@ -305,10 +305,12 @@ export class SyncEngine {
 		return new Promise((resolve, reject) => {
 			this.queue.push({
 				key,
-				run: () => run().then(resolve, (e) => {
-					reject(e);
-					throw e;
-				}),
+				run: () =>
+					run().then(resolve, (e: unknown) => {
+						const err = e instanceof Error ? e : new Error(String(e));
+						reject(err);
+						throw err;
+					}),
 			});
 			void this.pump();
 		});
@@ -370,7 +372,7 @@ export class SyncEngine {
 
 	private scheduleSave(): void {
 		if (!this.stateDirty || this.saveTimer) return;
-		this.saveTimer = setTimeout(() => {
+		this.saveTimer = window.setTimeout(() => {
 			this.saveTimer = undefined;
 			void this.flush();
 		}, 1000);

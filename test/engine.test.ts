@@ -405,11 +405,18 @@ scenario('names differing only by case do not overwrite each other', async () =>
 	});
 	await b.connect();
 	assert.ok(b.engine.connected);
-	assert.deepEqual(await b.tree(), ['Note.md']);
-	assert.equal(await b.read('Note.md'), 'upper');
-	assert.deepEqual(b.problems, ['note.md']);
-	// and the server copy of the skipped one is untouched
-	assert.equal(await onRemote(async (s) => new TextDecoder().decode((await s.readFile(`${b.remoteDir}/note.md`)).data)), 'lower');
+	// Files are reconciled in parallel, so either one may win the name; what matters is that exactly one
+	// is created with its own content, the other is reported, and nothing is overwritten anywhere.
+	const tree = await b.tree();
+	assert.equal(tree.length, 1);
+	const [kept] = tree;
+	assert.ok(kept === 'Note.md' || kept === 'note.md');
+	const skipped = kept === 'Note.md' ? 'note.md' : 'Note.md';
+	assert.equal(await b.read(kept), kept === 'Note.md' ? 'upper' : 'lower');
+	assert.deepEqual(b.problems, [skipped]);
+	const remoteText = (p: string) => onRemote(async (s) => new TextDecoder().decode((await s.readFile(`${b.remoteDir}/${p}`)).data));
+	assert.equal(await remoteText('Note.md'), 'upper');
+	assert.equal(await remoteText('note.md'), 'lower');
 	return [b];
 });
 

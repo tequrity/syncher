@@ -197,7 +197,7 @@ export class Sftp {
 				this.ch.write(this.frame(w.bytes()));
 			} catch (e) {
 				this.pending.delete(id);
-				reject(e as Error);
+				reject(e instanceof Error ? e : new Error(String(e)));
 			}
 		});
 	}

@@ -24,6 +24,8 @@ const en = {
 		'Obsyncher: key file not found: {path}. On a phone Obsidian cannot read files outside the vault — use "Import key" in the plugin settings.',
 	keyBad: 'Obsyncher: this is not a usable SSH private key — {msg}',
 	keyImported: 'Obsyncher: key imported (stored encrypted).',
+	keyImportPlaceholder: 'Paste the private key here, or use Choose file…',
+	secretSaved: '•••••••• (saved)',
 	keyImportEmpty: 'Choose the key file or paste the key text first.',
 	connectFailed: 'Obsyncher: cannot connect — {msg}',
 	connected: 'Obsyncher: connected to {host}',
@@ -113,5 +115,5 @@ export type MsgKey = keyof typeof en;
 
 /** Looks up a UI string and fills in its `{placeholders}`. */
 export function t(key: MsgKey, vars: Record<string, string | number> = {}): string {
-	return en[key].replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? `{${k}}`));
+	return en[key].replace(/\{(\w+)\}/g, (_: string, k: string) => String(vars[k] ?? `{${k}}`));
 }

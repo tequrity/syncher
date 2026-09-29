@@ -8,7 +8,7 @@ No cloud, no subscription, no third party: just your notes, your devices and you
 [![Latest release](https://img.shields.io/github/v/release/tequrity/obsyncher?sort=semver&label=release&color=7C3AED)](https://github.com/tequrity/obsyncher/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/tequrity/obsyncher/total?color=7C3AED)](https://github.com/tequrity/obsyncher/releases)
 [![License: MIT](https://img.shields.io/github/license/tequrity/obsyncher?color=blue)](LICENSE)
-[![Obsidian](https://img.shields.io/badge/Obsidian-%E2%89%A5%201.5.0-483699?logo=obsidian&logoColor=white)](https://obsidian.md)
+[![Obsidian](https://img.shields.io/badge/Obsidian-%E2%89%A5%201.8.7-483699?logo=obsidian&logoColor=white)](https://obsidian.md)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20Android-informational)](#-installation)
 [![TypeScript](https://img.shields.io/badge/TypeScript-pure%20JS%20SSH-3178C6?logo=typescript&logoColor=white)](#-security)
 
@@ -19,6 +19,7 @@ No cloud, no subscription, no third party: just your notes, your devices and you
 [Server setup](#%EF%B8%8F-step-1--prepare-the-server) ·
 [Installation](#-installation) ·
 [Settings](#-settings-reference) ·
+[Disclosures](#-disclosures) ·
 [Troubleshooting](#-troubleshooting) ·
 [FAQ](#-faq)
 
@@ -51,7 +52,7 @@ No cloud, no subscription, no third party: just your notes, your devices and you
   <img src="docs/screenshots/import-key-phone.png" alt="Importing an SSH key on a phone" width="300">
 </p>
 <p align="center">
-  <img src="docs/screenshots/devices-and-deletion.png" alt="Devices list and a deletion pop-up" width="760">
+  <img src="docs/screenshots/devices-and-deletion.png" alt="Devices list with each plugin version (⚠ marks a device on another version) and a deletion pop-up" width="760">
 </p>
 
 ## 🧭 How it works
@@ -384,6 +385,18 @@ On first start the plugin creates `.obsidian/plugins/obsyncher/obsyncher.config.
   `data.json`, so a copied `data.json` is useless on another device.
 - **The relay** only forwards encrypted SSH bytes. Prefer `wss://`, or allow port 8022 only from your network / VPN.
 - Do not keep a private key in an ordinary (not hidden) folder of your vault: such files are synced to the server.
+
+## 📢 Disclosures
+
+As required by the Obsidian developer policies:
+
+- **Network use:** the plugin connects **only** to the SSH server you enter in its settings (directly on a
+  computer, or through the relay address you enter / `ws://<server address>:8022` on a phone). It sends your vault
+  files there and nowhere else. No other server is ever contacted.
+- **Files outside the vault:** on a computer, when you use **Key file** instead of **Import key…**, the plugin reads
+  that SSH private key file (by default from `~/.ssh`) to log in. It never writes files outside the vault.
+- **No account, no payment, no ads, no telemetry.** Nothing is collected or sent anywhere except your own server.
+- **Open source:** all code is in this repository under the [MIT license](LICENSE).
 
 ## 🩺 Troubleshooting
 

@@ -3,7 +3,8 @@
 // Nothing here is hard-coded to a machine: `~` is the user's home, relative
 // paths are relative to the plugin folder (works on Android too).
 
-import { App, Platform, normalizePath } from 'obsidian';
+import { App, normalizePath } from 'obsidian';
+import { NodeApis, nodeApis } from './node';
 
 export const CONFIG_FILE = 'obsyncher.config.json';
 
@@ -20,7 +21,7 @@ export interface FileConfig {
 
 /** Node APIs available (Electron desktop, and not the mobile emulation mode). */
 export function onDesktop(): boolean {
-	return Platform.isDesktopApp && !Platform.isMobile;
+	return nodeApis() !== undefined;
 }
 
 export function defaultFileConfig(): FileConfig {
@@ -35,23 +36,19 @@ export function defaultFileConfig(): FileConfig {
 	};
 }
 
-declare const require: (id: string) => any;
-
-function nodeFs(): typeof import('fs') | undefined {
-	if (!onDesktop()) return undefined;
-	try {
-		return require('fs');
-	} catch {
-		return undefined;
-	}
+function nodeFs(): NodeApis['fs'] | undefined {
+	return nodeApis()?.fs;
 }
 
-function nodePath(): typeof import('path') {
-	return require('path');
+/** Only called on desktop (after an `onDesktop()` check). */
+function nodePath(): NodeApis['path'] {
+	const api = nodeApis();
+	if (!api) throw new Error('Node APIs are not available on this platform');
+	return api.path;
 }
 
 function homeDir(): string {
-	return require('os').homedir();
+	return nodeApis()?.os.homedir() ?? '';
 }
 
 function isAbsolute(p: string): boolean {
@@ -75,7 +72,7 @@ export class ConfigManager {
 		const def = defaultFileConfig();
 		try {
 			if (await adapter.exists(this.path)) {
-				const raw = JSON.parse(await adapter.read(this.path));
+				const raw = JSON.parse(await adapter.read(this.path)) as Partial<FileConfig>;
 				this.cfg = { ...def, ...raw };
 			} else {
 				this.cfg = def;

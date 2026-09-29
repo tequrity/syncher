@@ -65,7 +65,7 @@ const DIGEST_INFO: Record<string, { prefix: string; hash: (m: Uint8Array) => Uin
 
 function hexBytes(h: string): Uint8Array {
 	const o = new Uint8Array(h.length / 2);
-	for (let i = 0; i < o.length; i++) o[i] = parseInt(h.substr(i * 2, 2), 16);
+	for (let i = 0; i < o.length; i++) o[i] = parseInt(h.slice(i * 2, i * 2 + 2), 16);
 	return o;
 }
 
@@ -259,7 +259,9 @@ function parseOpenSsh(data: Uint8Array, passphrase: string | undefined): Private
 		}
 	}
 	const pr = new Reader(priv);
-	if (pr.u32() !== pr.u32()) throw new KeyPassphraseError('Wrong key passphrase');
+	const check1 = pr.u32();
+	const check2 = pr.u32();
+	if (check1 !== check2) throw new KeyPassphraseError('Wrong key passphrase');
 	const type = pr.text();
 	if (type === 'ssh-ed25519') {
 		const pk = pr.string();

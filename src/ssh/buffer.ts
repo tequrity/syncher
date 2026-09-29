@@ -40,7 +40,7 @@ export function bigIntToBytes(n: bigint, len?: number): Uint8Array {
 	let hex = n.toString(16);
 	if (hex.length % 2) hex = '0' + hex;
 	const raw = new Uint8Array(hex.length / 2);
-	for (let i = 0; i < raw.length; i++) raw[i] = parseInt(hex.substr(i * 2, 2), 16);
+	for (let i = 0; i < raw.length; i++) raw[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
 	if (len === undefined || raw.length === len) return raw;
 	if (raw.length > len) throw new Error('bigint too large');
 	const out = new Uint8Array(len);

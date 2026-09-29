@@ -206,7 +206,7 @@ export class SshClient {
 	private nextChannelId = 0;
 	private authenticated = false;
 	private globalWaiters: ((ok: boolean) => void)[] = [];
-	private keepaliveTimer?: ReturnType<typeof setInterval>;
+	private keepaliveTimer?: number;
 	private missedKeepalives = 0;
 	private closedErr?: Error;
 	serverSigAlgs?: string[];
@@ -236,19 +236,19 @@ export class SshClient {
 	static async connect(sock: Duplex, opts: SshOptions): Promise<SshClient> {
 		const c = new SshClient(sock, opts);
 		const timeout = opts.timeoutMs ?? 20000;
-		let timer: ReturnType<typeof setTimeout> | undefined;
+		let timer: number | undefined;
 		try {
 			await Promise.race([
 				c.handshake(),
 				new Promise<never>((_, rej) => {
-					timer = setTimeout(() => rej(new Error('SSH handshake timeout')), timeout);
+					timer = window.setTimeout(() => rej(new Error('SSH handshake timeout')), timeout);
 				}),
 			]);
 		} catch (e) {
 			c.shutdown(e as Error);
 			throw e;
 		} finally {
-			clearTimeout(timer);
+			window.clearTimeout(timer);
 		}
 		c.startKeepalive();
 		return c;
@@ -335,7 +335,7 @@ export class SshClient {
 	shutdown(err?: Error): void {
 		if (this.closedErr) return;
 		this.closedErr = err ?? new Error('SSH connection closed');
-		if (this.keepaliveTimer) clearInterval(this.keepaliveTimer);
+		if (this.keepaliveTimer) window.clearInterval(this.keepaliveTimer);
 		try {
 			this.sock.close();
 		} catch {
@@ -369,13 +369,13 @@ export class SshClient {
 	private startKeepalive(): void {
 		const every = this.opts.keepaliveMs ?? 15000;
 		if (every <= 0) return;
-		this.keepaliveTimer = setInterval(() => {
+		this.keepaliveTimer = window.setInterval(() => {
 			if (this.missedKeepalives >= 3) {
 				this.shutdown(new Error('SSH keepalive timeout'));
 				return;
 			}
 			this.missedKeepalives++;
-			this.globalRequest('keepalive@openssh.com').then(() => (this.missedKeepalives = 0));
+			void this.globalRequest('keepalive@openssh.com').then(() => (this.missedKeepalives = 0));
 		}, every);
 	}
 

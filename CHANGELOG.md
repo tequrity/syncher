@@ -9,6 +9,24 @@ and a section of this file; `npm run release` refuses to build when they disagre
 shown in the plugin settings header ("Obsyncher vX.Y.Z") and in the status bar tooltip, and every device
 publishes its version so the others can see it under "Devices seen on the server".
 
+## [0.2.1] — 2026-09-29
+
+Prepared for the Obsidian community plugin directory: the code now passes the official
+`eslint-plugin-obsidianmd` rule set (the one the directory's automated review is based on) with no errors or warnings.
+
+### Changed
+- **Requires Obsidian 1.8.7 or newer** (`minAppVersion`), because the plugin uses APIs introduced in 1.6.6 and 1.8.7.
+- The settings tab is described with Obsidian's declarative settings API: on Obsidian 1.13+ all Obsyncher
+  settings show up in the settings search; older versions draw the same rows the classic way. Looks and works as before.
+- Node.js APIs are loaded only in the desktop app, from one guarded place; nothing Node-specific runs on phones.
+- Manifest description no longer contains characters the directory does not allow.
+- README: new **Disclosures** section (network use, files outside the vault, no telemetry).
+
+### Fixed
+- Timers use `window` timers (work correctly in Obsidian pop-out windows).
+- Stricter typing of everything read from JSON (config file, server metadata, journal).
+- Plugin unloading no longer returns a promise Obsidian does not wait for.
+
 ## [0.2.0] — 2026-09-29
 
 First public release.

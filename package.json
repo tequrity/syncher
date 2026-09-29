@@ -1,6 +1,6 @@
 {
   "name": "obsyncher",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Obsidian plugin: live SSH/SFTP vault sync between devices (Windows, Linux, Android)",
   "main": "main.js",
   "private": true,

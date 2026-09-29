@@ -3,11 +3,15 @@
 // and OBSYNCHER_TEST_KEYS (default .test-tmp/keys). See test/sshd/start-wsl-sshd.sh.
 
 import { readFileSync } from 'fs';
+import * as net from 'net';
 import { join, resolve } from 'path';
 import { SshClient, SshOptions } from '../src/ssh/client';
 import { parsePrivateKey } from '../src/ssh/keys';
 import { Sftp } from '../src/ssh/sftp';
 import { connectTcp } from '../src/ssh/socket';
+
+// The plugin uses window timers (Obsidian popout-window rule); Node has no window object.
+(globalThis as { window?: unknown }).window ??= globalThis;
 
 const [host, portStr, user] = (process.env.OBSYNCHER_TEST_SSH ?? `127.0.0.1:2299:${process.env.USER ?? process.env.USERNAME ?? 'user'}`).split(':');
 export const TEST_HOST = host;
@@ -20,7 +24,7 @@ export function keyText(name: string): string {
 }
 
 export async function connect(extra: Partial<SshOptions> = {}, keyName = 'id_ed25519', pass?: string): Promise<SshClient> {
-	const sock = await connectTcp(TEST_HOST, TEST_PORT, 5000);
+	const sock = await connectTcp(net, TEST_HOST, TEST_PORT, 5000);
 	return SshClient.connect(sock, {
 		username: TEST_USER,
 		privateKey: parsePrivateKey(keyText(keyName), pass),
@@ -42,7 +46,7 @@ export async function withSftp<T>(fn: (s: Sftp, c: SshClient) => Promise<T>, ext
 
 export async function serverAvailable(): Promise<boolean> {
 	try {
-		const s = await connectTcp(TEST_HOST, TEST_PORT, 2000);
+		const s = await connectTcp(net, TEST_HOST, TEST_PORT, 2000);
 		s.close();
 		return true;
 	} catch {

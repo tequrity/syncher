@@ -67,7 +67,7 @@ export class RemoteStore {
 		const f = `${this.meta}/vault.json`;
 		try {
 			const { data } = await this.sftp.readFile(f);
-			const id = JSON.parse(fromUtf8(data)).id;
+			const id = (JSON.parse(fromUtf8(data)) as { id?: unknown }).id;
 			if (typeof id === 'string' && id) return id;
 		} catch (e) {
 			if (!isNoSuchFile(e) && !(e instanceof SyntaxError)) throw e;
@@ -263,7 +263,7 @@ export class RemoteStore {
 		for (const line of fromUtf8(data.subarray(0, lastNl)).split('\n')) {
 			if (!line.trim()) continue;
 			try {
-				events.push(JSON.parse(line));
+				events.push(JSON.parse(line) as JournalEvent);
 			} catch {
 				/* torn/corrupt line: skip */
 			}
@@ -302,9 +302,13 @@ export class RemoteStore {
 			let permanentSave = false;
 			let version: string | undefined;
 			try {
-				const j = JSON.parse(fromUtf8((await this.sftp.readFile(`${dir}/${e.name}`)).data));
-				name = j.name || id;
-				permanentSave = !!j.permanentSave;
+				const j = JSON.parse(fromUtf8((await this.sftp.readFile(`${dir}/${e.name}`)).data)) as {
+					name?: unknown;
+					permanentSave?: unknown;
+					version?: unknown;
+				};
+				if (typeof j.name === 'string' && j.name) name = j.name;
+				permanentSave = j.permanentSave === true;
 				if (typeof j.version === 'string') version = j.version;
 			} catch {
 				/* ignore */

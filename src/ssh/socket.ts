@@ -10,18 +10,10 @@ export interface Duplex {
 	onClose: (err?: Error) => void;
 }
 
-declare const require: (id: string) => any;
+/** Node's `net` module; the caller provides it (desktop only), so this file needs no Node import. */
+export type NetModule = typeof import('net');
 
-export function hasTcp(): boolean {
-	try {
-		return typeof require === 'function' && !!require('net')?.Socket;
-	} catch {
-		return false;
-	}
-}
-
-export function connectTcp(host: string, port: number, timeoutMs: number): Promise<Duplex> {
-	const net = require('net');
+export function connectTcp(net: NetModule, host: string, port: number, timeoutMs: number): Promise<Duplex> {
 	return new Promise((resolve, reject) => {
 		const sock = net.createConnection({ host, port });
 		let settled = false;
@@ -33,7 +25,7 @@ export function connectTcp(host: string, port: number, timeoutMs: number): Promi
 			onData: () => undefined,
 			onClose: () => undefined,
 		};
-		const timer = setTimeout(() => {
+		const timer = window.setTimeout(() => {
 			if (settled) return;
 			settled = true;
 			sock.destroy();
@@ -44,14 +36,14 @@ export function connectTcp(host: string, port: number, timeoutMs: number): Promi
 		sock.once('connect', () => {
 			if (settled) return;
 			settled = true;
-			clearTimeout(timer);
+			window.clearTimeout(timer);
 			resolve(duplex);
 		});
 		sock.on('data', (d: Uint8Array) => duplex.onData(new Uint8Array(d.buffer, d.byteOffset, d.byteLength)));
 		sock.on('error', (e: Error) => {
 			if (!settled) {
 				settled = true;
-				clearTimeout(timer);
+				window.clearTimeout(timer);
 				reject(e);
 				return;
 			}
@@ -69,7 +61,7 @@ export function connectWebSocket(url: string, timeoutMs: number): Promise<Duplex
 		try {
 			ws = new WebSocket(url, ['binary']);
 		} catch (e) {
-			reject(e);
+			reject(e instanceof Error ? e : new Error(String(e)));
 			return;
 		}
 		ws.binaryType = 'arraybuffer';
@@ -89,7 +81,7 @@ export function connectWebSocket(url: string, timeoutMs: number): Promise<Duplex
 			onData: () => undefined,
 			onClose: () => undefined,
 		};
-		const timer = setTimeout(() => {
+		const timer = window.setTimeout(() => {
 			if (settled) return;
 			settled = true;
 			duplex.close();
@@ -98,7 +90,7 @@ export function connectWebSocket(url: string, timeoutMs: number): Promise<Duplex
 		ws.onopen = () => {
 			if (settled) return;
 			settled = true;
-			clearTimeout(timer);
+			window.clearTimeout(timer);
 			resolve(duplex);
 		};
 		ws.onmessage = (ev) => {
@@ -114,14 +106,14 @@ export function connectWebSocket(url: string, timeoutMs: number): Promise<Duplex
 		ws.onerror = () => {
 			if (!settled) {
 				settled = true;
-				clearTimeout(timer);
+				window.clearTimeout(timer);
 				reject(new Error(`WebSocket error: ${url}`));
 			}
 		};
 		ws.onclose = (ev) => {
 			if (!settled) {
 				settled = true;
-				clearTimeout(timer);
+				window.clearTimeout(timer);
 				reject(new Error(`WebSocket closed (${ev.code}) ${url}`));
 				return;
 			}

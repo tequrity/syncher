@@ -1,5 +1,5 @@
-import { App, Modal, Notice, Platform, Plugin, Setting, TAbstractFile, TFile, TFolder } from 'obsidian';
-import { ConfigManager, KeyNotFoundError, onDesktop } from './config';
+import { App, Modal, Notice, Platform, Plugin, Setting, TAbstractFile, TFile, TFolder, requireApiVersion } from 'obsidian';
+import { ConfigManager, KeyNotFoundError } from './config';
 import { t } from './i18n';
 import { defaultRelayUrl } from './relay-url';
 import { ObsidianFs, PluginPersistence } from './obsidian-fs';
@@ -8,12 +8,11 @@ import { DEFAULT_SETTINGS, ObsyncherSettingTab, ObsyncherSettings } from './sett
 import { HostKeyInfo, HostKeyMismatchError, SshAuthError, SshClient } from './ssh/client';
 import { KeyPassphraseError, PrivateKey, parsePrivateKey } from './ssh/keys';
 import { Sftp } from './ssh/sftp';
-import { Duplex, connectTcp, connectWebSocket, hasTcp } from './ssh/socket';
+import { Duplex, connectTcp, connectWebSocket } from './ssh/socket';
+import { nodeApis } from './node';
 import { SyncEngine } from './sync/engine';
 import { RemoteStore } from './sync/remote';
 import { DeviceInfo, SyncStatus } from './sync/types';
-
-declare const require: (id: string) => any;
 
 /** Errors that retrying cannot fix: wait for the user to change settings. */
 class FatalConnectError extends Error {}
@@ -46,7 +45,6 @@ export default class ObsyncherPlugin extends Plugin {
 		this.secrets = new SecretBox(this.app);
 		this.config = new ConfigManager(this.app, this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`);
 		await this.config.load();
-		console.info(`Obsyncher v${this.manifest.version} loaded`);
 		this.deviceId = this.ensureDeviceId();
 
 		this.engine = new SyncEngine(
@@ -111,17 +109,18 @@ export default class ObsyncherPlugin extends Plugin {
 		this.restartTimers();
 	}
 
-	async onunload(): Promise<void> {
+	onunload(): void {
 		this.stopped = true;
 		for (const h of this.debounce.values()) window.clearTimeout(h);
 		this.disconnect();
-		await this.engine?.flush();
+		void this.engine?.flush();
 	}
 
 	// ---------------------------------------------------------------- settings
 
 	async loadSettings(): Promise<void> {
-		this.settings = { ...DEFAULT_SETTINGS, ...((await this.loadData()) ?? {}) };
+		const stored = (await this.loadData()) as Partial<ObsyncherSettings> | null;
+		this.settings = { ...DEFAULT_SETTINGS, ...(stored ?? {}) };
 	}
 
 	async saveSettings(): Promise<void> {
@@ -139,13 +138,8 @@ export default class ObsyncherPlugin extends Plugin {
 	}
 
 	defaultDeviceName(): string {
-		if (onDesktop()) {
-			try {
-				return require('os').hostname();
-			} catch {
-				/* fall through */
-			}
-		}
+		const host = nodeApis()?.os.hostname();
+		if (host) return host;
 		const kind = Platform.isAndroidApp ? 'Android' : Platform.isIosApp ? 'iOS' : 'Device';
 		return `${kind}-${this.deviceId.slice(0, 4)}`;
 	}
@@ -310,7 +304,7 @@ export default class ObsyncherPlugin extends Plugin {
 
 	/** Direct TCP where the platform has it (desktop); Obsidian mobile has no TCP API, only WebSocket. */
 	usesRelay(): boolean {
-		return !onDesktop() || !hasTcp() || this.settings.transport === 'websocket';
+		return !nodeApis() || this.settings.transport === 'websocket';
 	}
 
 	private async openSocket(e: ReturnType<ObsyncherPlugin['effective']>): Promise<Duplex> {
@@ -322,7 +316,9 @@ export default class ObsyncherPlugin extends Plugin {
 				throw new Error(t('relayFailed', { url: e.relayUrl, msg: (err as Error).message }));
 			}
 		}
-		return connectTcp(e.host, e.port, 15000);
+		const api = nodeApis();
+		if (!api) throw new FatalConnectError(t('noRelay'));
+		return connectTcp(api.net, e.host, e.port, 15000);
 	}
 
 	private async loadKey(keyFile: string): Promise<PrivateKey | undefined> {
@@ -475,7 +471,12 @@ function confirmModal(app: App, side: 'local' | 'remote', count: number, total: 
 		});
 		new Setting(m.contentEl)
 			.addButton((b) => b.setButtonText(t('massDeleteNo')).setCta().onClick(() => done(false)))
-			.addButton((b) => b.setButtonText(t('massDeleteYes')).setWarning().onClick(() => done(true)));
+			.addButton((b) => {
+				b.setButtonText(t('massDeleteYes')).onClick(() => done(true));
+				// red destructive style: setDestructive() since 1.13, the same CSS class before
+				if (requireApiVersion('1.13.0')) b.setDestructive();
+				else b.buttonEl.addClass('mod-warning');
+			});
 		m.onClose = () => {
 			if (!answered) resolve(false);
 		};

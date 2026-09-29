@@ -1,4 +1,5 @@
-import { App, Modal, Notice, Platform, PluginSettingTab, Setting } from 'obsidian';
+import { App, Modal, Notice, Platform, PluginSettingTab, Setting, requireApiVersion } from 'obsidian';
+import type { SettingDefinition, SettingDefinitionItem, SettingGroup } from 'obsidian';
 import { t } from './i18n';
 import type ObsyncherPlugin from './main';
 import { defaultRelayUrl } from './relay-url';
@@ -68,8 +69,18 @@ const CONNECTION_FIELDS: (keyof ObsyncherSettings)[] = [
 	'relayUrl',
 ];
 
+type TextKey = 'remoteDir' | 'host' | 'username' | 'keyFile' | 'relayUrl' | 'deviceName';
+type SecretKey = 'passwordEnc' | 'keyPassEnc';
+type NumberKey = 'pollSeconds' | 'debounceMs' | 'fullSyncMinutes';
+
+/**
+ * Settings tab described once with the declarative settings API: Obsidian ≥ 1.13 renders it itself
+ * (and finds every row in its settings search); older versions get the same rows drawn by
+ * `renderLegacy()`. Rows keep their custom controls through `render`.
+ */
 export class ObsyncherSettingTab extends PluginSettingTab {
-	private snapshot = '';
+	/** a connection field changed while the tab was open: reconnect when it closes */
+	private connDirty = false;
 
 	constructor(
 		app: App,
@@ -78,289 +89,352 @@ export class ObsyncherSettingTab extends PluginSettingTab {
 		super(app, plugin);
 	}
 
-	private connKey(): string {
-		const s = this.plugin.settings;
-		return JSON.stringify(CONNECTION_FIELDS.map((k) => s[k]));
-	}
-
 	hide(): void {
-		if (this.snapshot && this.snapshot !== this.connKey()) void this.plugin.reconnect();
-		this.snapshot = '';
+		super.hide();
+		if (this.connDirty) void this.plugin.reconnect();
+		this.connDirty = false;
 	}
 
+	/** Stores a value, persists the settings, and remembers when a reconnect is needed. */
+	private async set<K extends keyof ObsyncherSettings>(key: K, value: ObsyncherSettings[K]): Promise<void> {
+		this.plugin.settings[key] = value;
+		if (CONNECTION_FIELDS.includes(key)) this.connDirty = true;
+		await this.plugin.saveSettings();
+	}
+
+	/** Rebuilds the rows after a change that alters the structure or the texts shown. */
+	private refresh(): void {
+		if (requireApiVersion('1.13.0')) this.update();
+		else this.renderLegacy();
+	}
+
+	/** Obsidian < 1.13 only calls display(); draw the same definitions imperatively there. */
 	display(): void {
-		const { containerEl } = this;
+		this.renderLegacy();
+	}
+
+	private renderLegacy(): void {
+		const el = this.containerEl;
+		el.empty();
+		const shown = (v: boolean | (() => boolean) | undefined): boolean => (typeof v === 'function' ? v() : v !== false);
+		const row = (def: SettingDefinition): void => {
+			if (!shown(def.visible)) return;
+			const setting = new Setting(el).setName(def.name);
+			if (def.desc) setting.setDesc(def.desc);
+			if ('render' in def && def.render) def.render(setting, undefined as unknown as SettingGroup);
+		};
+		for (const item of this.getSettingDefinitions()) {
+			if ('type' in item) {
+				if (item.type !== 'group' && item.type !== 'list') continue;
+				if (!shown(item.visible)) continue;
+				if (item.heading) new Setting(el).setName(item.heading).setHeading();
+				for (const child of item.items ?? []) if (!('items' in child)) row(child);
+			} else if (!('items' in item)) row(item);
+		}
+	}
+
+	private text(name: string, desc: string, key: TextKey, placeholder: string): SettingDefinition {
+		return {
+			name,
+			desc,
+			render: (setting) => {
+				setting.addText((c) =>
+					c
+						.setPlaceholder(placeholder)
+						.setValue(this.plugin.settings[key])
+						.onChange((v) => void this.set(key, v.trim())),
+				);
+			},
+		};
+	}
+
+	private secret(name: string, desc: string, key: SecretKey): SettingDefinition {
+		return {
+			name,
+			desc,
+			render: (setting) => {
+				setting
+					.addText((c) => {
+						c.inputEl.type = 'password';
+						c.inputEl.autocomplete = 'off';
+						c.setPlaceholder(this.plugin.settings[key] ? t('secretSaved') : '').onChange(
+							(v) => void this.set(key, v ? this.plugin.secrets.seal(key, v) : ''),
+						);
+					})
+					.addExtraButton((b) =>
+						b
+							.setIcon('trash')
+							.setTooltip(t('bReset'))
+							.onClick(() => void this.set(key, '').then(() => this.refresh())),
+					);
+			},
+		};
+	}
+
+	private number(name: string, desc: string, key: NumberKey, min: number): SettingDefinition {
+		return {
+			name,
+			desc,
+			render: (setting) => {
+				setting.addText((c) =>
+					c.setValue(String(this.plugin.settings[key])).onChange((v) => {
+						const n = Number(v);
+						if (!Number.isFinite(n) || n < min) return;
+						void this.set(key, n).then(() => this.plugin.restartTimers());
+					}),
+				);
+			},
+		};
+	}
+
+	/** A read-only multi-line list shown under the row description. */
+	private listBlock(setting: Setting, lines: string[]): void {
+		if (lines.length) setting.descEl.createEl('pre', { cls: 'obsyncher-ignore', text: lines.join('\n') });
+	}
+
+	getSettingDefinitions(): SettingDefinitionItem[] {
 		const p = this.plugin;
 		const s = p.settings;
 		const cfg = p.config.cfg;
-		if (!this.snapshot) this.snapshot = this.connKey();
-		containerEl.empty();
-
-		const save = async (): Promise<void> => {
-			await p.saveSettings();
-		};
-		const text = (
-			name: string,
-			desc: string,
-			key: 'remoteDir' | 'host' | 'username' | 'keyFile' | 'relayUrl' | 'deviceName',
-			placeholder: string,
-		): Setting =>
-			new Setting(containerEl)
-				.setName(name)
-				.setDesc(desc)
-				.addText((c) =>
-					c
-						.setPlaceholder(placeholder)
-						.setValue(s[key])
-						.onChange(async (v) => {
-							s[key] = v.trim();
-							await save();
-						}),
-				);
-		const secret = (name: string, desc: string, key: 'passwordEnc' | 'keyPassEnc'): Setting =>
-			new Setting(containerEl)
-				.setName(name)
-				.setDesc(desc)
-				.addText((c) => {
-					c.inputEl.type = 'password';
-					c.inputEl.autocomplete = 'off';
-					c.setPlaceholder(s[key] ? '•••••••• (saved)' : '').onChange(async (v) => {
-						s[key] = v ? p.secrets.seal(key, v) : '';
-						await save();
-					});
-				})
-				.addExtraButton((b) =>
-					b
-						.setIcon('trash')
-						.setTooltip(t('bReset'))
-						.onClick(async () => {
-							s[key] = '';
-							await save();
-							this.display();
-						}),
-				);
-
-		// ---------------- connection
-		new Setting(containerEl).setName(`Obsyncher v${p.manifest.version}`).setDesc(t('versionDesc')).setHeading();
-		new Setting(containerEl).setName(t('secConnection')).setHeading();
-		text(t('fRemoteDir'), t('fRemoteDirDesc'), 'remoteDir', cfg.remoteDir || '/home/user/vaults/notes');
-		text(t('fHost'), t('fHostDesc'), 'host', cfg.host || 'example.org');
-		new Setting(containerEl).setName(t('fPort')).addText((c) =>
-			c
-				.setPlaceholder(String(cfg.port || 22))
-				.setValue(s.port ? String(s.port) : '')
-				.onChange(async (v) => {
-					const n = parseInt(v, 10);
-					s.port = Number.isFinite(n) && n > 0 && n < 65536 ? n : 0;
-					await save();
-				}),
-		);
-		text(t('fUser'), '', 'username', cfg.username || 'user');
-		secret(t('fPassword'), t('fPasswordDesc'), 'passwordEnc');
-
-		// Key: an imported key (stored encrypted in the plugin data) beats a key file. Import is the
-		// only reliable way on Android, where plugins cannot read files outside the vault.
-		new Setting(containerEl)
-			.setName(t('fKeyImport'))
-			.setDesc(s.keyDataEnc ? t('fKeyImportedDesc') : t('fKeyImportDesc'))
-			.addButton((b) =>
-				b
-					.setButtonText(s.keyDataEnc ? t('bKeyReplace') : t('bKeyImport'))
-					.setCta()
-					.onClick(() =>
-						new KeyImportModal(this.app, async (keyText) => {
-							s.keyDataEnc = p.secrets.seal('keyDataEnc', keyText);
-							await save();
-							this.display();
-						}).open(),
-					),
-			)
-			.then((st) => {
-				if (!s.keyDataEnc) return;
-				st.addExtraButton((b) =>
-					b
-						.setIcon('trash')
-						.setTooltip(t('bReset'))
-						.onClick(async () => {
-							s.keyDataEnc = '';
-							await save();
-							this.display();
-						}),
-				);
-			});
-		if (!s.keyDataEnc) {
-			const keySetting = text(t('fKey'), t('fKeyDesc', { dir: p.config.keysDirLabel() }), 'keyFile', cfg.keyFile || 'id_ed25519');
-			void p.config.listKeys().then((keys) => {
-				if (!keys.length) return;
-				keySetting.addDropdown((d) => {
-					d.addOption('', `— ${t('fKeyPick')} —`);
-					for (const k of keys) d.addOption(k, k);
-					d.setValue(keys.includes(s.keyFile) ? s.keyFile : '');
-					d.onChange(async (v) => {
-						if (!v) return;
-						s.keyFile = v;
-						await save();
-						this.display();
-					});
-				});
-			});
-		}
-		secret(t('fKeyPass'), t('fKeyPassDesc'), 'keyPassEnc');
-
-		// Transport: desktop talks SSH directly; Obsidian mobile has no TCP API at all, so the
-		// same SSH stream goes through a tiny byte relay next to sshd (server/install-relay.sh).
-		if (!Platform.isMobile) {
-			new Setting(containerEl)
-				.setName(t('fTransport'))
-				.setDesc(t('fTransportDesc'))
-				.addDropdown((d) =>
-					d
-						.addOption('auto', t('tTcp'))
-						.addOption('websocket', t('tWs'))
-						.setValue(s.transport === 'websocket' ? 'websocket' : 'auto')
-						.onChange(async (v) => {
-							s.transport = v as Transport;
-							await save();
-							this.display();
-						}),
-				);
-		}
-		if (p.usesRelay()) {
-			const host = s.host || cfg.host;
-			text(t('fRelay'), t('fRelayDesc'), 'relayUrl', cfg.relayUrl || defaultRelayUrl(host) || 'ws://example.org:8022');
-		}
-
-		// ---------------- device
-		new Setting(containerEl).setName(t('secDevice')).setHeading();
-		new Setting(containerEl)
-			.setName(t('fDeviceName'))
-			.setDesc(t('fDeviceNameDesc'))
-			.addText((c) =>
-				c
-					.setPlaceholder(p.defaultDeviceName())
-					.setValue(s.deviceName)
-					.onChange(async (v) => {
-						s.deviceName = v.trim();
-						await save();
-						p.engine?.setDeviceName(p.deviceName());
-					}),
-			);
-		new Setting(containerEl)
-			.setName(t('fPermanent'))
-			.setDesc(t('fPermanentDesc'))
-			.addToggle((c) =>
-				c.setValue(s.permanentSave).onChange(async (v) => {
-					s.permanentSave = v;
-					await save();
-					await p.engine?.setPermanentSave(v);
-					this.display();
-				}),
-			);
-
-		// ---------------- sync behaviour
-		new Setting(containerEl).setName(t('secSync')).setHeading();
-		new Setting(containerEl)
-			.setName(t('fAuto'))
-			.setDesc(t('fAutoDesc'))
-			.addToggle((c) =>
-				c.setValue(s.autoSync).onChange(async (v) => {
-					s.autoSync = v;
-					await save();
-					if (v) void p.connect();
-					else p.disconnect();
-				}),
-			);
-		const num = (name: string, desc: string, key: 'pollSeconds' | 'debounceMs' | 'fullSyncMinutes', min: number): void => {
-			new Setting(containerEl)
-				.setName(name)
-				.setDesc(desc)
-				.addText((c) =>
-					c.setValue(String(s[key])).onChange(async (v) => {
-						const n = Number(v);
-						if (!Number.isFinite(n) || n < min) return;
-						s[key] = n;
-						await save();
-						p.restartTimers();
-					}),
-				);
-		};
-		num(t('fPoll'), '', 'pollSeconds', 1);
-		num(t('fDebounce'), t('fDebounceDesc'), 'debounceMs', 0);
-		num(t('fFull'), t('fFullDesc'), 'fullSyncMinutes', 0);
-		new Setting(containerEl)
-			.setName(t('fExclude'))
-			.setDesc(t('fExcludeDesc'))
-			.addTextArea((c) => {
-				c.inputEl.rows = 3;
-				c.setValue(s.exclude).onChange(async (v) => {
-					s.exclude = v;
-					await save();
-					p.engine?.setExclude(p.excludePatterns());
-				});
-			});
-		new Setting(containerEl)
-			.setName(t('fNotify'))
-			.setDesc(t('fNotifyDesc'))
-			.addToggle((c) =>
-				c.setValue(s.notifyDeletes).onChange(async (v) => {
-					s.notifyDeletes = v;
-					await save();
-				}),
-			);
-
-		// ---------------- status & tools
-		new Setting(containerEl).setName(t('secStatus')).setHeading();
-		new Setting(containerEl)
-			.setName(p.statusText())
-			.addButton((b) => b.setButtonText(t('bTest')).onClick(() => void p.testConnection()))
-			.addButton((b) => b.setButtonText(t('bReconnect')).onClick(() => void p.reconnect()))
-			.addButton((b) =>
-				b
-					.setButtonText(t('bSyncNow'))
-					.setCta()
-					.onClick(() => p.syncNow()),
-			);
-		new Setting(containerEl)
-			.setName(t('fHostKey'))
-			.setDesc(s.hostKey || t('fHostKeyNone'))
-			.addButton((b) =>
-				b.setButtonText(t('bReset')).onClick(async () => {
-					s.hostKey = '';
-					await save();
-					new Notice(t('fHostKeyNone'));
-					this.display();
-				}),
-			);
-		const problems = p.engine?.problemList ?? [];
-		if (problems.length) {
-			new Setting(containerEl).setName(t('fProblems')).setDesc(t('fProblemsDesc', { n: problems.length }));
-			containerEl.createEl('pre', {
-				cls: 'obsyncher-ignore',
-				text: problems.map((x) => `${x.path || '/'} — ${x.message}`).join('\n'),
-			});
-		}
-		const ignore = p.engine?.ignoreList ?? [];
-		const ig = new Setting(containerEl).setName(t('fIgnore')).setDesc(t('fIgnoreDesc', { n: ignore.length }));
-		if (ignore.length) {
-			const pre = containerEl.createEl('pre', { cls: 'obsyncher-ignore' });
-			pre.setText(ignore.join('\n'));
-			ig.settingEl.after(pre);
-		}
-		const devs = p.engine?.devices ?? [];
-		if (devs.length) {
-			const d = new Setting(containerEl).setName(t('fDevices'));
-			const mine = p.manifest.version;
-			d.setDesc(
-				devs
-					.map((x) => {
-						const v = x.version ? `v${x.version}` : t('versionOld');
-						const warn = x.version !== mine ? ` ⚠ ${t('versionDiffers', { mine })}` : '';
-						return `${x.name} (${v}) — ${p.isDeviceOnline(x) ? t('online') : t('offline')}${warn}`;
-					})
-					.join(' · '),
-			);
-		}
-		new Setting(containerEl).setName(t('fConfig')).setDesc(t('fConfigDesc', { path: p.config.path }));
+		return [
+			{ name: `Obsyncher v${p.manifest.version}`, desc: t('versionDesc') },
+			{
+				type: 'group',
+				heading: t('secConnection'),
+				items: [
+					this.text(t('fRemoteDir'), t('fRemoteDirDesc'), 'remoteDir', cfg.remoteDir || '/home/user/vaults/notes'),
+					this.text(t('fHost'), t('fHostDesc'), 'host', cfg.host || 'example.org'),
+					{
+						name: t('fPort'),
+						render: (setting) => {
+							setting.addText((c) =>
+								c
+									.setPlaceholder(String(cfg.port || 22))
+									.setValue(s.port ? String(s.port) : '')
+									.onChange((v) => {
+										const n = parseInt(v, 10);
+										void this.set('port', Number.isFinite(n) && n > 0 && n < 65536 ? n : 0);
+									}),
+							);
+						},
+					},
+					this.text(t('fUser'), '', 'username', cfg.username || 'user'),
+					this.secret(t('fPassword'), t('fPasswordDesc'), 'passwordEnc'),
+					// An imported key (stored encrypted in the plugin data) beats a key file. Import is the
+					// only reliable way on phones, where plugins cannot read files outside the vault.
+					{
+						name: t('fKeyImport'),
+						desc: s.keyDataEnc ? t('fKeyImportedDesc') : t('fKeyImportDesc'),
+						render: (setting) => {
+							setting.addButton((b) =>
+								b
+									.setButtonText(s.keyDataEnc ? t('bKeyReplace') : t('bKeyImport'))
+									.setCta()
+									.onClick(() =>
+										new KeyImportModal(this.app, async (keyText) => {
+											await this.set('keyDataEnc', p.secrets.seal('keyDataEnc', keyText));
+											this.refresh();
+										}).open(),
+									),
+							);
+							if (s.keyDataEnc)
+								setting.addExtraButton((b) =>
+									b
+										.setIcon('trash')
+										.setTooltip(t('bReset'))
+										.onClick(() => void this.set('keyDataEnc', '').then(() => this.refresh())),
+								);
+						},
+					},
+					{
+						name: t('fKey'),
+						desc: t('fKeyDesc', { dir: p.config.keysDirLabel() }),
+						visible: () => !s.keyDataEnc,
+						render: (setting) => {
+							setting.addText((c) =>
+								c
+									.setPlaceholder(cfg.keyFile || 'id_ed25519')
+									.setValue(s.keyFile)
+									.onChange((v) => void this.set('keyFile', v.trim())),
+							);
+							void p.config.listKeys().then((keys) => {
+								if (!keys.length) return;
+								setting.addDropdown((d) => {
+									d.addOption('', `— ${t('fKeyPick')} —`);
+									for (const k of keys) d.addOption(k, k);
+									d.setValue(keys.includes(s.keyFile) ? s.keyFile : '');
+									d.onChange((v) => {
+										if (v) void this.set('keyFile', v).then(() => this.refresh());
+									});
+								});
+							});
+						},
+					},
+					this.secret(t('fKeyPass'), t('fKeyPassDesc'), 'keyPassEnc'),
+					// Desktop talks SSH directly; Obsidian mobile has no TCP API at all, so the same SSH
+					// stream goes through a tiny byte relay next to sshd (server/install-relay.sh).
+					{
+						name: t('fTransport'),
+						desc: t('fTransportDesc'),
+						visible: () => !Platform.isMobile,
+						render: (setting) => {
+							setting.addDropdown((d) =>
+								d
+									.addOption('auto', t('tTcp'))
+									.addOption('websocket', t('tWs'))
+									.setValue(s.transport === 'websocket' ? 'websocket' : 'auto')
+									.onChange((v) => void this.set('transport', v === 'websocket' ? 'websocket' : 'auto').then(() => this.refresh())),
+							);
+						},
+					},
+					{
+						...this.text(
+							t('fRelay'),
+							t('fRelayDesc'),
+							'relayUrl',
+							cfg.relayUrl || defaultRelayUrl(s.host || cfg.host) || 'ws://example.org:8022',
+						),
+						visible: () => p.usesRelay(),
+					},
+				],
+			},
+			{
+				type: 'group',
+				heading: t('secDevice'),
+				items: [
+					{
+						name: t('fDeviceName'),
+						desc: t('fDeviceNameDesc'),
+						render: (setting) => {
+							setting.addText((c) =>
+								c
+									.setPlaceholder(p.defaultDeviceName())
+									.setValue(s.deviceName)
+									.onChange((v) => void this.set('deviceName', v.trim()).then(() => p.engine?.setDeviceName(p.deviceName()))),
+							);
+						},
+					},
+					{
+						name: t('fPermanent'),
+						desc: t('fPermanentDesc'),
+						render: (setting) => {
+							setting.addToggle((c) =>
+								c.setValue(s.permanentSave).onChange((v) => {
+									void this.set('permanentSave', v)
+										.then(() => p.engine?.setPermanentSave(v))
+										.then(() => this.refresh());
+								}),
+							);
+						},
+					},
+				],
+			},
+			{
+				type: 'group',
+				heading: t('secSync'),
+				items: [
+					{
+						name: t('fAuto'),
+						desc: t('fAutoDesc'),
+						render: (setting) => {
+							setting.addToggle((c) =>
+								c.setValue(s.autoSync).onChange((v) => {
+									void this.set('autoSync', v).then(() => {
+										if (v) void p.connect();
+										else p.disconnect();
+									});
+								}),
+							);
+						},
+					},
+					this.number(t('fPoll'), '', 'pollSeconds', 1),
+					this.number(t('fDebounce'), t('fDebounceDesc'), 'debounceMs', 0),
+					this.number(t('fFull'), t('fFullDesc'), 'fullSyncMinutes', 0),
+					{
+						name: t('fExclude'),
+						desc: t('fExcludeDesc'),
+						render: (setting) => {
+							setting.addTextArea((c) => {
+								c.inputEl.rows = 3;
+								c.setValue(s.exclude).onChange(
+									(v) => void this.set('exclude', v).then(() => p.engine?.setExclude(p.excludePatterns())),
+								);
+							});
+						},
+					},
+					{
+						name: t('fNotify'),
+						desc: t('fNotifyDesc'),
+						render: (setting) => {
+							setting.addToggle((c) => c.setValue(s.notifyDeletes).onChange((v) => void this.set('notifyDeletes', v)));
+						},
+					},
+				],
+			},
+			{
+				type: 'group',
+				heading: t('secStatus'),
+				items: [
+					{
+						name: p.statusText(),
+						searchable: false,
+						render: (setting) => {
+							setting
+								.addButton((b) => b.setButtonText(t('bTest')).onClick(() => void p.testConnection()))
+								.addButton((b) => b.setButtonText(t('bReconnect')).onClick(() => void p.reconnect().then(() => this.refresh())))
+								.addButton((b) =>
+									b
+										.setButtonText(t('bSyncNow'))
+										.setCta()
+										.onClick(() => p.syncNow()),
+								);
+						},
+					},
+					{
+						name: t('fHostKey'),
+						desc: s.hostKey || t('fHostKeyNone'),
+						render: (setting) => {
+							setting.addButton((b) =>
+								b.setButtonText(t('bReset')).onClick(() => {
+									void this.set('hostKey', '').then(() => {
+										new Notice(t('fHostKeyNone'));
+										this.refresh();
+									});
+								}),
+							);
+						},
+					},
+					{
+						name: t('fProblems'),
+						desc: t('fProblemsDesc', { n: p.engine?.problemList.length ?? 0 }),
+						visible: () => (p.engine?.problemList.length ?? 0) > 0,
+						render: (setting) =>
+							this.listBlock(
+								setting,
+								(p.engine?.problemList ?? []).map((x) => `${x.path || '/'} — ${x.message}`),
+							),
+					},
+					{
+						name: t('fIgnore'),
+						desc: t('fIgnoreDesc', { n: p.engine?.ignoreList.length ?? 0 }),
+						render: (setting) => this.listBlock(setting, p.engine?.ignoreList ?? []),
+					},
+					{
+						name: t('fDevices'),
+						desc: (p.engine?.devices ?? [])
+							.map((x) => {
+								const mine = p.manifest.version;
+								const v = x.version ? `v${x.version}` : t('versionOld');
+								const warn = x.version !== mine ? ` ⚠ ${t('versionDiffers', { mine })}` : '';
+								return `${x.name} (${v}) — ${p.isDeviceOnline(x) ? t('online') : t('offline')}${warn}`;
+							})
+							.join(' · '),
+						visible: () => (p.engine?.devices.length ?? 0) > 0,
+					},
+					{ name: t('fConfig'), desc: t('fConfigDesc', { path: p.config.path }) },
+				],
+			},
+		];
 	}
 }
 
@@ -382,7 +456,7 @@ class KeyImportModal extends Modal {
 		contentEl.createEl('p', { text: t('keyImportBody') });
 		const area = contentEl.createEl('textarea', { cls: 'obsyncher-key-input' });
 		area.rows = 8;
-		area.placeholder = '-----BEGIN OPENSSH PRIVATE KEY-----\n…\n-----END OPENSSH PRIVATE KEY-----';
+		area.placeholder = t('keyImportPlaceholder');
 		area.spellcheck = false;
 		area.autocomplete = 'off';
 		const picker = contentEl.createEl('input', { type: 'file', cls: 'obsyncher-hidden' });
