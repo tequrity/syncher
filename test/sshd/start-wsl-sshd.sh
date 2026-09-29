@@ -2,11 +2,11 @@
 # Starts a throw-away, user-mode OpenSSH server for integration tests.
 # Usage (from WSL or any Linux): sh test/sshd/start-wsl-sshd.sh <dir-with-client-pubkeys> [port]
 # The server serves SFTP for the current user, accepts only the given public keys,
-# and keeps its state under $HOME/.obsyncher-test.
+# and keeps its state under $HOME/.syncher-test.
 set -eu
 KEYS_DIR="$1"
 PORT="${2:-2299}"
-BASE="$HOME/.obsyncher-test"
+BASE="$HOME/.syncher-test"
 mkdir -p "$BASE"
 chmod 700 "$BASE"
 for t in ed25519 ecdsa rsa; do

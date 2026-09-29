@@ -1,13 +1,13 @@
 import { App, Modal, Notice, Platform, PluginSettingTab, Setting, requireApiVersion } from 'obsidian';
 import type { SettingDefinition, SettingDefinitionItem, SettingGroup } from 'obsidian';
 import { t } from './i18n';
-import type ObsyncherPlugin from './main';
+import type SyncherPlugin from './main';
 import { defaultRelayUrl } from './relay-url';
 import { parsePrivateKey, KeyPassphraseError } from './ssh/keys';
 
 export type Transport = 'auto' | 'tcp' | 'websocket';
 
-export interface ObsyncherSettings {
+export interface SyncherSettings {
 	remoteDir: string;
 	host: string;
 	port: number;
@@ -33,7 +33,7 @@ export interface ObsyncherSettings {
 	hostKey: string;
 }
 
-export const DEFAULT_SETTINGS: ObsyncherSettings = {
+export const DEFAULT_SETTINGS: SyncherSettings = {
 	remoteDir: '',
 	host: '',
 	port: 0,
@@ -56,7 +56,7 @@ export const DEFAULT_SETTINGS: ObsyncherSettings = {
 };
 
 /** Settings that require a new connection when changed. */
-const CONNECTION_FIELDS: (keyof ObsyncherSettings)[] = [
+const CONNECTION_FIELDS: (keyof SyncherSettings)[] = [
 	'remoteDir',
 	'host',
 	'port',
@@ -78,13 +78,13 @@ type NumberKey = 'pollSeconds' | 'debounceMs' | 'fullSyncMinutes';
  * (and finds every row in its settings search); older versions get the same rows drawn by
  * `renderLegacy()`. Rows keep their custom controls through `render`.
  */
-export class ObsyncherSettingTab extends PluginSettingTab {
+export class SyncherSettingTab extends PluginSettingTab {
 	/** a connection field changed while the tab was open: reconnect when it closes */
 	private connDirty = false;
 
 	constructor(
 		app: App,
-		private plugin: ObsyncherPlugin,
+		private plugin: SyncherPlugin,
 	) {
 		super(app, plugin);
 	}
@@ -96,7 +96,7 @@ export class ObsyncherSettingTab extends PluginSettingTab {
 	}
 
 	/** Stores a value, persists the settings, and remembers when a reconnect is needed. */
-	private async set<K extends keyof ObsyncherSettings>(key: K, value: ObsyncherSettings[K]): Promise<void> {
+	private async set<K extends keyof SyncherSettings>(key: K, value: SyncherSettings[K]): Promise<void> {
 		this.plugin.settings[key] = value;
 		if (CONNECTION_FIELDS.includes(key)) this.connDirty = true;
 		await this.plugin.saveSettings();
@@ -189,7 +189,7 @@ export class ObsyncherSettingTab extends PluginSettingTab {
 
 	/** A read-only multi-line list shown under the row description. */
 	private listBlock(setting: Setting, lines: string[]): void {
-		if (lines.length) setting.descEl.createEl('pre', { cls: 'obsyncher-ignore', text: lines.join('\n') });
+		if (lines.length) setting.descEl.createEl('pre', { cls: 'syncher-ignore', text: lines.join('\n') });
 	}
 
 	getSettingDefinitions(): SettingDefinitionItem[] {
@@ -197,7 +197,7 @@ export class ObsyncherSettingTab extends PluginSettingTab {
 		const s = p.settings;
 		const cfg = p.config.cfg;
 		return [
-			{ name: `Obsyncher v${p.manifest.version}`, desc: t('versionDesc') },
+			{ name: `Syncher v${p.manifest.version}`, desc: t('versionDesc') },
 			{
 				type: 'group',
 				heading: t('secConnection'),
@@ -220,8 +220,8 @@ export class ObsyncherSettingTab extends PluginSettingTab {
 					},
 					this.text(t('fUser'), '', 'username', cfg.username || 'user'),
 					this.secret(t('fPassword'), t('fPasswordDesc'), 'passwordEnc'),
-					// An imported key (stored encrypted in the plugin data) beats a key file. Import is the
-					// only reliable way on phones, where plugins cannot read files outside the vault.
+					// The key is imported once (file picker or pasted text) and stored encrypted in the plugin
+					// data, so the plugin never reads files outside the vault — on any platform.
 					{
 						name: t('fKeyImport'),
 						desc: s.keyDataEnc ? t('fKeyImportedDesc') : t('fKeyImportDesc'),
@@ -244,30 +244,6 @@ export class ObsyncherSettingTab extends PluginSettingTab {
 										.setTooltip(t('bReset'))
 										.onClick(() => void this.set('keyDataEnc', '').then(() => this.refresh())),
 								);
-						},
-					},
-					{
-						name: t('fKey'),
-						desc: t('fKeyDesc', { dir: p.config.keysDirLabel() }),
-						visible: () => !s.keyDataEnc,
-						render: (setting) => {
-							setting.addText((c) =>
-								c
-									.setPlaceholder(cfg.keyFile || 'id_ed25519')
-									.setValue(s.keyFile)
-									.onChange((v) => void this.set('keyFile', v.trim())),
-							);
-							void p.config.listKeys().then((keys) => {
-								if (!keys.length) return;
-								setting.addDropdown((d) => {
-									d.addOption('', `— ${t('fKeyPick')} —`);
-									for (const k of keys) d.addOption(k, k);
-									d.setValue(keys.includes(s.keyFile) ? s.keyFile : '');
-									d.onChange((v) => {
-										if (v) void this.set('keyFile', v).then(() => this.refresh());
-									});
-								});
-							});
 						},
 					},
 					this.secret(t('fKeyPass'), t('fKeyPassDesc'), 'keyPassEnc'),
@@ -454,12 +430,12 @@ class KeyImportModal extends Modal {
 		const { contentEl } = this;
 		this.titleEl.setText(t('keyImportTitle'));
 		contentEl.createEl('p', { text: t('keyImportBody') });
-		const area = contentEl.createEl('textarea', { cls: 'obsyncher-key-input' });
+		const area = contentEl.createEl('textarea', { cls: 'syncher-key-input' });
 		area.rows = 8;
 		area.placeholder = t('keyImportPlaceholder');
 		area.spellcheck = false;
 		area.autocomplete = 'off';
-		const picker = contentEl.createEl('input', { type: 'file', cls: 'obsyncher-hidden' });
+		const picker = contentEl.createEl('input', { type: 'file', cls: 'syncher-hidden' });
 		picker.addEventListener('change', () => {
 			const file = picker.files?.[0];
 			if (!file) return;

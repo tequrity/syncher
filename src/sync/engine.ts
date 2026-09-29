@@ -1,4 +1,4 @@
-// Obsyncher sync engine.
+// Syncher sync engine.
 //
 // Model: every device keeps a local "base" record (hash + stats at the moment of the
 // last successful sync) for each path. Comparing base vs. current local vs. current

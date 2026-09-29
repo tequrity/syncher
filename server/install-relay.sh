@@ -1,5 +1,5 @@
 #!/bin/sh
-# Installs the Obsyncher relay (needed ONLY for phones) as a systemd service.
+# Installs the Syncher relay (needed ONLY for phones) as a systemd service.
 #
 # Obsidian on Android/iOS gives plugins no TCP sockets, so the phone cannot talk SSH
 # to sshd directly. The relay accepts a WebSocket on port 8022 and pipes the raw bytes
@@ -30,14 +30,22 @@ if [ "$(id -u)" -ne 0 ]; then
 	exit 1
 fi
 
-UNIT=/etc/systemd/system/obsyncher-relay.service
-BIN=/usr/local/bin/obsyncher-relay
+UNIT=/etc/systemd/system/syncher-relay.service
+BIN=/usr/local/bin/syncher-relay
+
+# The plugin used to be called Obsyncher: remove a relay installed under that name, if any.
+if [ -f /etc/systemd/system/obsyncher-relay.service ] || [ -f /usr/local/bin/obsyncher-relay ]; then
+	systemctl disable --now obsyncher-relay 2>/dev/null || true
+	rm -f /etc/systemd/system/obsyncher-relay.service /usr/local/bin/obsyncher-relay
+	systemctl daemon-reload
+	echo "Removed the relay installed under the plugin's former name (obsyncher-relay)."
+fi
 
 if [ "$UNINSTALL" = 1 ]; then
-	systemctl disable --now obsyncher-relay 2>/dev/null || true
+	systemctl disable --now syncher-relay 2>/dev/null || true
 	rm -f "$UNIT" "$BIN"
 	systemctl daemon-reload
-	echo "Obsyncher relay removed."
+	echo "Syncher relay removed."
 	exit 0
 fi
 
@@ -48,17 +56,17 @@ if [ -z "$PY" ]; then
 fi
 
 HERE=$(cd "$(dirname "$0")" && pwd)
-install -m 755 "$HERE/obsyncher-relay.py" "$BIN"
+install -m 755 "$HERE/syncher-relay.py" "$BIN"
 sed -e "s#--listen 0.0.0.0:8022 --target 127.0.0.1:22#--listen 0.0.0.0:$PORT --target $TARGET#" \
-	"$HERE/obsyncher-relay.service" > "$UNIT"
+	"$HERE/syncher-relay.service" > "$UNIT"
 systemctl daemon-reload
-systemctl enable obsyncher-relay >/dev/null
-systemctl restart obsyncher-relay
+systemctl enable syncher-relay >/dev/null
+systemctl restart syncher-relay
 sleep 1
-if systemctl is-active --quiet obsyncher-relay; then
-	echo "Obsyncher relay is running: ws://<this server>:$PORT -> $TARGET"
+if systemctl is-active --quiet syncher-relay; then
+	echo "Syncher relay is running: ws://<this server>:$PORT -> $TARGET"
 else
-	echo "relay failed to start, see: journalctl -u obsyncher-relay" >&2
+	echo "relay failed to start, see: journalctl -u syncher-relay" >&2
 	exit 1
 fi
 if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then

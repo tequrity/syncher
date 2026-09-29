@@ -50,3 +50,23 @@ test('falls back to local storage and migrates into SecretStorage later', () => 
 	assert.equal(upgraded.ls.size, 0);
 	assert.equal(upgraded.ss.size, 1);
 });
+
+test('secrets sealed before the rename from Obsyncher still open', async () => {
+	const { hkdf } = await import('@noble/hashes/hkdf.js');
+	const { sha512 } = await import('@noble/hashes/sha2.js');
+	const { gcm } = await import('@noble/ciphers/aes.js');
+	const b64 = (b: Uint8Array) => Buffer.from(b).toString('base64');
+	const te = new TextEncoder();
+	// what the old version stored: master key under its old id, value sealed with its old HKDF label
+	const master = crypto.getRandomValues(new Uint8Array(32));
+	const salt = crypto.getRandomValues(new Uint8Array(16));
+	const nonce = crypto.getRandomValues(new Uint8Array(12));
+	const key = hkdf(sha512, master, salt, te.encode('obsyncher/v1/keyPassEnc'), 32);
+	const sealed = 'v1.' + [salt, nonce, gcm(key, nonce, te.encode('keyPassEnc')).encrypt(te.encode('old pass'))].map(b64).join('.');
+	const app = fakeApp(true);
+	app.ss.set('obsyncher-master-key', b64(master));
+	const box = new SecretBox(app);
+	assert.equal(box.open('keyPassEnc', sealed), 'old pass');
+	assert.ok(app.ss.has('syncher-master-key'), 'master key now also stored under the new id');
+	assert.equal(box.open('keyPassEnc', box.seal('keyPassEnc', 'new')), 'new');
+});

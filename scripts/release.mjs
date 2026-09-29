@@ -1,4 +1,4 @@
-// Copies the production build into dist/obsyncher (committed, so devices can install without building).
+// Copies the production build into dist/syncher (committed, so devices can install without building).
 // Refuses to release when the version is not the same everywhere or has no CHANGELOG entry:
 // the version shown in the plugin must always tell which build a device runs.
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
@@ -14,8 +14,8 @@ if (problems.length) {
 	process.exit(1);
 }
 
-const dst = 'dist/obsyncher';
+const dst = 'dist/syncher';
 mkdirSync(dst, { recursive: true });
 for (const f of ['main.js', 'manifest.json', 'styles.css']) copyFileSync(f, `${dst}/${f}`);
 writeFileSync('dist/VERSION', `${version}\n`);
-console.log(`dist/obsyncher updated (v${version})`);
+console.log(`dist/syncher updated (v${version})`);

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Obsyncher WebSocket -> TCP relay (Python 3.8+, standard library only).
+"""Syncher WebSocket -> TCP relay (Python 3.8+, standard library only).
 
 Obsidian on Android cannot open raw TCP sockets, so the plugin tunnels its SSH
 byte stream through a WebSocket. This relay accepts WebSocket connections and
@@ -7,7 +7,7 @@ forwards the bytes to the local SSH server. It never sees plaintext: SSH is
 end-to-end encrypted between the phone and sshd, and the plugin pins the host key.
 
 Usage:
-    python3 obsyncher-relay.py [--listen 0.0.0.0:8022] [--target 127.0.0.1:22]
+    python3 syncher-relay.py [--listen 0.0.0.0:8022] [--target 127.0.0.1:22]
                                [--cert fullchain.pem --key privkey.pem]
 
 Plugin setting "WebSocket relay URL": ws://<server>:8022, or wss://<server>:8022
@@ -27,7 +27,7 @@ import struct
 GUID = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 MAX_FRAME = 16 * 1024 * 1024
 
-log = logging.getLogger("obsyncher-relay")
+log = logging.getLogger("syncher-relay")
 
 
 class Closed(Exception):

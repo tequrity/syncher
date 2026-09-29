@@ -61,7 +61,7 @@ const HOSTKEY_ALGS = [
 	'rsa-sha2-256',
 ];
 
-const CLIENT_VERSION = 'SSH-2.0-Obsyncher_1.0';
+const CLIENT_VERSION = 'SSH-2.0-Syncher_1.0';
 
 export interface HostKeyInfo {
 	type: string;

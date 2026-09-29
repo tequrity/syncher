@@ -1,31 +1,22 @@
-// Node.js built-ins, reachable only in the desktop app (Electron). Obsidian mobile has no Node
-// APIs at all, so every access goes through this one guarded place and yields `undefined` there.
+// Node.js networking, reachable only in the desktop app (Electron). Obsidian mobile has no Node
+// APIs at all, so the one Node module the plugin needs (`net`, for a direct SSH connection) is
+// loaded here behind a platform guard and is `undefined` on phones, which use the relay instead.
 
 import { Platform } from 'obsidian';
 
 declare const require: (id: string) => unknown;
 
-export interface NodeApis {
-	fs: typeof import('fs');
-	path: typeof import('path');
-	os: typeof import('os');
-	net: typeof import('net');
-}
+export type NetModule = typeof import('net');
 
-let cached: NodeApis | null | undefined;
+let cached: NetModule | null | undefined;
 
-/** Node APIs on desktop; `undefined` on mobile (including Obsidian's mobile emulation). */
-export function nodeApis(): NodeApis | undefined {
+/** Node's `net` module on desktop; `undefined` on mobile (including Obsidian's mobile emulation). */
+export function nodeNet(): NetModule | undefined {
 	if (cached !== undefined) return cached ?? undefined;
 	cached = null;
 	if (Platform.isDesktop && !Platform.isMobile) {
 		try {
-			cached = {
-				fs: require('fs') as NodeApis['fs'],
-				path: require('path') as NodeApis['path'],
-				os: require('os') as NodeApis['os'],
-				net: require('net') as NodeApis['net'],
-			};
+			cached = require('net') as NetModule;
 		} catch {
 			cached = null;
 		}

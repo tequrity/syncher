@@ -1,6 +1,6 @@
 {
-  "name": "obsyncher",
-  "version": "0.2.1",
+  "name": "syncher",
+  "version": "0.3.0",
   "description": "Obsidian plugin: live SSH/SFTP vault sync between devices (Windows, Linux, Android)",
   "main": "main.js",
   "private": true,
@@ -29,12 +29,12 @@
   "author": "Mr.Racoon",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tequrity/obsyncher.git"
+    "url": "git+https://github.com/tequrity/syncher.git"
   },
   "bugs": {
-    "url": "https://github.com/tequrity/obsyncher/issues"
+    "url": "https://github.com/tequrity/syncher/issues"
   },
-  "homepage": "https://github.com/tequrity/obsyncher#readme",
+  "homepage": "https://github.com/tequrity/syncher#readme",
   "keywords": [
     "obsidian",
     "obsidian-plugin",

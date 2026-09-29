@@ -1,13 +1,13 @@
 <div align="center">
 
-# Obsyncher
+# Syncher
 
 **Live two-way sync of your Obsidian vault with a folder on your own server — over plain SSH.**
 No cloud, no subscription, no third party: just your notes, your devices and your server.
 
-[![Latest release](https://img.shields.io/github/v/release/tequrity/obsyncher?sort=semver&label=release&color=7C3AED)](https://github.com/tequrity/obsyncher/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/tequrity/obsyncher/total?color=7C3AED)](https://github.com/tequrity/obsyncher/releases)
-[![License: MIT](https://img.shields.io/github/license/tequrity/obsyncher?color=blue)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/tequrity/syncher?sort=semver&label=release&color=7C3AED)](https://github.com/tequrity/syncher/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/tequrity/syncher/total?color=7C3AED)](https://github.com/tequrity/syncher/releases)
+[![License: MIT](https://img.shields.io/github/license/tequrity/syncher?color=blue)](LICENSE)
 [![Obsidian](https://img.shields.io/badge/Obsidian-%E2%89%A5%201.8.7-483699?logo=obsidian&logoColor=white)](https://obsidian.md)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20Android-informational)](#-installation)
 [![TypeScript](https://img.shields.io/badge/TypeScript-pure%20JS%20SSH-3178C6?logo=typescript&logoColor=white)](#-security)
@@ -44,15 +44,15 @@ No cloud, no subscription, no third party: just your notes, your devices and you
 ## 📸 Screenshots
 
 <p align="center">
-  <img src="docs/screenshots/settings-desktop.png" alt="Obsyncher settings on a computer" width="760">
+  <img src="docs/screenshots/settings-desktop.png" alt="Syncher settings on a computer" width="760">
 </p>
 <p align="center">
-  <img src="docs/screenshots/settings-phone.png" alt="Obsyncher settings on a phone" width="300">
+  <img src="docs/screenshots/settings-phone.png" alt="Syncher settings on a phone" width="300">
   &nbsp;&nbsp;
   <img src="docs/screenshots/import-key-phone.png" alt="Importing an SSH key on a phone" width="300">
 </p>
 <p align="center">
-  <img src="docs/screenshots/devices-and-deletion.png" alt="Devices list with each plugin version (⚠ marks a device on another version) and a deletion pop-up" width="760">
+  <img src="docs/screenshots/devices-and-deletion.png" alt="Devices list with each plugin version and a deletion pop-up" width="760">
 </p>
 
 ## 🧭 How it works
@@ -63,7 +63,7 @@ No cloud, no subscription, no third party: just your notes, your devices and you
  [ desktop ] ─┘
 ```
 
-1. Every device keeps a small, private "hash base" (`.obsidian/plugins/obsyncher/state.json`) that remembers what
+1. Every device keeps a small, private "hash base" (`.obsidian/plugins/syncher/state.json`) that remembers what
    each file looked like at the last sync. Comparing _then_ with _now_ on both sides tells exactly who changed what.
 2. A changed file is uploaded right away and a line is added to a change journal on the server. Other online
    devices read that journal every few seconds and fetch only what changed.
@@ -116,13 +116,13 @@ A key is a file that lets the plugin log in without a password. Do this **on you
 1. Press <kbd>Win</kbd>, type **PowerShell**, press <kbd>Enter</kbd>.
 2. Create the key (press <kbd>Enter</kbd> at every question; a passphrase is optional):
    ```powershell
-   ssh-keygen -t ed25519 -f "$env:USERPROFILE\.ssh\obsyncher"
+   ssh-keygen -t ed25519 -f "$env:USERPROFILE\.ssh\syncher"
    ```
 3. Put the public half on the server (replace `<user>` and `<server>`; you will be asked for your server password once):
    ```powershell
-   type "$env:USERPROFILE\.ssh\obsyncher.pub" | ssh <user>@<server> "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
+   type "$env:USERPROFILE\.ssh\syncher.pub" | ssh <user>@<server> "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
    ```
-4. Check it: `ssh -i "$env:USERPROFILE\.ssh\obsyncher" <user>@<server>` must log you in without the server password.
+4. Check it: `ssh -i "$env:USERPROFILE\.ssh\syncher" <user>@<server>` must log you in without the server password.
 
 </details>
 
@@ -130,14 +130,14 @@ A key is a file that lets the plugin log in without a password. Do this **on you
 <summary><b>🐧 Linux / macOS</b></summary>
 
 ```bash
-ssh-keygen -t ed25519 -f ~/.ssh/obsyncher        # press Enter at every question
-ssh-copy-id -i ~/.ssh/obsyncher.pub <user>@<server>
-ssh -i ~/.ssh/obsyncher <user>@<server>           # must log in without the server password
+ssh-keygen -t ed25519 -f ~/.ssh/syncher        # press Enter at every question
+ssh-copy-id -i ~/.ssh/syncher.pub <user>@<server>
+ssh -i ~/.ssh/syncher <user>@<server>           # must log in without the server password
 ```
 
 </details>
 
-You now have two files: `obsyncher` (**private** — never share it) and `obsyncher.pub` (public, already on the server).
+You now have two files: `syncher` (**private** — never share it) and `syncher.pub` (public, already on the server).
 
 > [!TIP]
 > No key? The plugin can also log in with the server password, if your server allows password logins.
@@ -147,12 +147,12 @@ You now have two files: `obsyncher` (**private** — never share it) and `obsync
 Skip this if you only sync computers. On the server, from a copy of this repository:
 
 ```bash
-git clone https://github.com/tequrity/obsyncher.git
-cd obsyncher
+git clone https://github.com/tequrity/syncher.git
+cd syncher
 sudo sh server/install-relay.sh
 ```
 
-You should see `Obsyncher relay is running: ws://<this server>:8022 -> 127.0.0.1:22`.
+You should see `Syncher relay is running: ws://<this server>:8022 -> 127.0.0.1:22`.
 The relay needs only Python 3 and systemd. If the script says a firewall is active, run the command it prints
 to open port **8022** (or open it only to your home network / VPN).
 
@@ -165,8 +165,8 @@ to open port **8022** (or open it only to your home network / VPN).
 | SSH is on another port / use another relay port | `sudo sh server/install-relay.sh --port 8022 --target 127.0.0.1:2222` |
 | Reinstall or update (after `git pull`, or to change options) | run the install command again |
 | Remove completely (stops it, disables it, deletes its files) | `sudo sh server/install-relay.sh --uninstall` |
-| Is it running? | `systemctl status obsyncher-relay` |
-| Live log (shows each phone connecting) | `journalctl -u obsyncher-relay -f` |
+| Is it running? | `systemctl status syncher-relay` |
+| Live log (shows each phone connecting) | `journalctl -u syncher-relay -f` |
 
 If you opened port 8022 in a firewall, close it again after removal (for example `sudo ufw delete allow 8022/tcp`).
 
@@ -181,7 +181,7 @@ An equivalent alternative to this relay is `websockify 8022 127.0.0.1:22`.
 
 ## 📦 Installation
 
-Obsyncher is not in the Obsidian community store yet. Pick **one** of the two ways below.
+Syncher is not in the Obsidian community store yet. Pick **one** of the two ways below.
 
 ### Option A — with BRAT (easiest, works on every device, updates itself)
 
@@ -189,19 +189,19 @@ Obsyncher is not in the Obsidian community store yet. Pick **one** of the two wa
 2. If you see **Turn on community plugins**, press it.
 3. Press **Browse**, search for **BRAT**, press **Install**, then **Enable**.
 4. Go back to **Settings**, open **BRAT** in the left list (under _Community plugins_).
-5. Press **Add beta plugin**, paste `tequrity/obsyncher`, press **Add plugin**.
-6. In **Settings → Community plugins**, make sure the switch next to **Obsyncher** is on.
+5. Press **Add beta plugin**, paste `tequrity/syncher`, press **Add plugin**.
+6. In **Settings → Community plugins**, make sure the switch next to **Syncher** is on.
 
 ### Option B — by hand
 
-1. Open the [latest release](https://github.com/tequrity/obsyncher/releases/latest) and download
+1. Open the [latest release](https://github.com/tequrity/syncher/releases/latest) and download
    **`main.js`**, **`manifest.json`** and **`styles.css`**.
 2. Find your vault folder (the folder you opened in Obsidian) and inside it the hidden folder `.obsidian/plugins`.
-   Create a folder named **`obsyncher`** there and put the three files into it:
+   Create a folder named **`syncher`** there and put the three files into it:
    ```
-   <your vault>/.obsidian/plugins/obsyncher/main.js
-   <your vault>/.obsidian/plugins/obsyncher/manifest.json
-   <your vault>/.obsidian/plugins/obsyncher/styles.css
+   <your vault>/.obsidian/plugins/syncher/main.js
+   <your vault>/.obsidian/plugins/syncher/manifest.json
+   <your vault>/.obsidian/plugins/syncher/styles.css
    ```
    <details>
    <summary>How to see hidden folders</summary>
@@ -213,15 +213,15 @@ Obsyncher is not in the Obsidian community store yet. Pick **one** of the two wa
 
    </details>
 3. Restart Obsidian → **Settings → Community plugins** → **Turn on community plugins** (if asked) →
-   press the refresh button ⟳ next to _Installed plugins_ → switch **Obsyncher** on.
+   press the refresh button ⟳ next to _Installed plugins_ → switch **Syncher** on.
 
 <details>
 <summary><b>From source</b> (developers)</summary>
 
 ```bash
-git clone https://github.com/tequrity/obsyncher.git && cd obsyncher
+git clone https://github.com/tequrity/syncher.git && cd syncher
 npm install
-npm run release                          # builds main.js and copies it to dist/obsyncher
+npm run release                          # builds main.js and copies it to dist/syncher
 node scripts/install.mjs "<path to your vault>"
 ```
 
@@ -231,8 +231,8 @@ node scripts/install.mjs "<path to your vault>"
 
 ## ⚙️ Step 3 — Configure the plugin
 
-Open **Settings → Obsyncher** (at the bottom of the left list). At the very top you see
-**Obsyncher v…** — the installed version.
+Open **Settings → Syncher** (at the bottom of the left list). At the very top you see
+**Syncher v…** — the installed version.
 
 ### 🪟🐧 On a computer
 
@@ -241,19 +241,20 @@ Open **Settings → Obsyncher** (at the bottom of the left list). At the very to
 3. **SSH port** — leave empty for the usual `22`.
 4. **SSH user** — your login on the server.
 5. **SSH key** — press **Import key…** → **Choose file…** → pick your **private** key
-   (`obsyncher`, _not_ `obsyncher.pub`; on Windows it is in `C:\Users\<you>\.ssh\`) → **Save**.
-   The key is stored encrypted on this device. Alternatively type the key file name into **Key file**
-   (keys found in `~/.ssh` are offered in a drop-down).
+   (`syncher`, _not_ `syncher.pub`; on Windows it is in `C:\Users\<you>\.ssh\`) → **Save**.
+   The key is stored encrypted on this device; the plugin never reads files outside your vault.
+   _The file picker hides the `.ssh` folder? Type `%USERPROFILE%\.ssh` (Windows) or `~/.ssh` (Linux) into its
+   address bar, or paste the key text into the big field instead._
 6. **Key passphrase** — only if you gave the key a passphrase.
 7. **Connection method** — keep **Direct SSH**.
 8. Press **Test connection**. You should see:
    _"Connection OK: `<user>` via `<server>:22`, folder … is writable."_
-9. Close the settings window. The status bar at the bottom shows **Obsyncher: syncing…** and then
-   **Obsyncher: synced**. Done!
+9. Close the settings window. The status bar at the bottom shows **Syncher: syncing…** and then
+   **Syncher: synced**. Done!
 
 ### 📱 On an Android phone
 
-1. Copy your **private** key file (`obsyncher`) to the phone (USB cable, a message to yourself, a cloud drive…).
+1. Copy your **private** key file (`syncher`) to the phone (USB cable, a message to yourself, a cloud drive…).
 2. Fill in **Remote folder**, **Server address** and **SSH user** exactly as on the computer
    (the **SSH port** is not used on the phone).
 3. **SSH key** → **Import key…** → **Choose file…** → pick the key file you copied → **Save**.
@@ -265,10 +266,6 @@ Open **Settings → Obsyncher** (at the bottom of the left list). At the very to
    (it then uses `ws://<server address>:8022`).
 6. Press **Test connection** — you should see _"Connection OK: … via ws://…:8022, folder … is writable."_
 7. Close the settings. Syncing starts on its own. The first sync of a big vault takes a few minutes; keep Obsidian open.
-
-> [!IMPORTANT]
-> A phone cannot read files outside the vault, so typing a path such as `/storage/emulated/0/.ssh/key`
-> into **Key file** does not work there — always use **Import key…** on a phone.
 
 ### ✅ Check that everything works
 
@@ -284,7 +281,7 @@ Open **Settings → Obsyncher** (at the bottom of the left list). At the very to
 - Just use Obsidian. The status is shown in the status bar (computer) and in the tooltip of the ⟳ icon in the
   left ribbon (phone). Hovering it also shows the plugin version.
 - **Click the status bar or the ⟳ icon** to run a full sync now.
-- Commands (<kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>P</kbd> → type _Obsyncher_): **Sync now (full scan)**,
+- Commands (<kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>P</kbd> → type _Syncher_): **Sync now (full scan)**,
   **Reconnect**, **Pause / resume auto-sync**.
 - Files deleted by the sync go to the trash (system trash or `.trash`, as set in
   **Settings → Files and links → Deleted files**).
@@ -313,7 +310,7 @@ Open **Settings → Obsyncher** (at the bottom of the left list). At the very to
 it only adds and updates."_
 
 1. Another device deletes a file → here it **stays**. Its path goes to the `sync_ignore` list
-   (`.obsidian/plugins/obsyncher/sync_ignore.json`, also shown in the settings), so it is not uploaded again and
+   (`.obsidian/plugins/syncher/sync_ignore.json`, also shown in the settings), so it is not uploaded again and
    does not come back on the other devices.
 2. A new file with the **same name** arrives from the server → the kept one is renamed
    `note.md` → `note-1.old.md` (then `-2.old`, `-3.old`, …) and stays in `sync_ignore`; the new file syncs normally.
@@ -330,12 +327,11 @@ it only adds and updates."_
 | **SSH port** | Default `22`. Not used on phones (they go through the relay). |
 | **SSH user** | Login on the server. |
 | **SSH password** | Only if there is no key or the server also asks for a password. Stored encrypted. |
-| **SSH key → Import key…** | Imports a private key once; stored encrypted on this device. Takes precedence over **Key file**. |
-| **Key file** | Instead of importing: a key file name in the keys folder (offered in a drop-down), a full path, or a path inside the vault. Computers only. |
+| **SSH key → Import key…** | Imports your private key once (file picker or pasted text); stored encrypted on this device. |
 | **Key passphrase** | If the key is protected with a passphrase. Stored encrypted. |
 | **Connection method** | Computers: **Direct SSH** (normal) or **Through the relay** (to test the relay from a computer). |
 | **WebSocket relay URL** | Shown when the relay is used. Empty = `ws://<server address>:8022`; or `wss://…`. |
-| **Device name** | Shown to the other devices, e.g. in deletion pop-ups. Defaults to the computer name. |
+| **Device name** | Shown to the other devices, e.g. in deletion pop-ups. Defaults to `Desktop-xxxx` / `Android-xxxx`; give it a friendly name like "Laptop". |
 | **Permanent save** | See [above](#%EF%B8%8F-permanent-save). |
 | **Auto-sync** | Connect on start and sync every change. |
 | **Check server every (seconds)** | How often to look for changes made by other devices (default 3). |
@@ -351,22 +347,20 @@ it only adds and updates."_
 <details>
 <summary><b>Config file</b> — preset values without typing</summary>
 
-On first start the plugin creates `.obsidian/plugins/obsyncher/obsyncher.config.json`:
+On first start the plugin creates `.obsidian/plugins/syncher/syncher.config.json`:
 
 ```json
 {
-	"keysDir": "~/.ssh",
 	"remoteDir": "",
 	"host": "",
 	"port": 22,
 	"username": "",
-	"keyFile": "",
 	"relayUrl": ""
 }
 ```
 
-- `keysDir` — where key files are looked up: `~/.ssh`, an absolute path, or a path relative to the plugin folder.
-- The other fields are defaults; a value entered in the settings window always wins.
+- The fields are defaults; a value entered in the settings window always wins.
+- The SSH key is not part of it: import it in the settings (it is stored encrypted, never as a plain file).
 - The file belongs to one device and is never synced — handy for preparing a device in advance.
 
 </details>
@@ -393,8 +387,10 @@ As required by the Obsidian developer policies:
 - **Network use:** the plugin connects **only** to the SSH server you enter in its settings (directly on a
   computer, or through the relay address you enter / `ws://<server address>:8022` on a phone). It sends your vault
   files there and nowhere else. No other server is ever contacted.
-- **Files outside the vault:** on a computer, when you use **Key file** instead of **Import key…**, the plugin reads
-  that SSH private key file (by default from `~/.ssh`) to log in. It never writes files outside the vault.
+- **Files outside the vault:** none. The plugin reads and writes only your vault (through Obsidian's API) and its own
+  settings folder. Your SSH key gets in only when you choose it in the **Import key…** window yourself.
+- **System information:** none. The plugin does not read the computer's name, user name or environment; the default
+  device name is `Desktop-xxxx` / `Android-xxxx` with a random suffix.
 - **No account, no payment, no ads, no telemetry.** Nothing is collected or sent anywhere except your own server.
 - **Open source:** all code is in this repository under the [MIT license](LICENSE).
 
@@ -403,16 +399,16 @@ As required by the Obsidian developer policies:
 | Message / symptom | What to do |
 |---|---|
 | _fill in server address, user and remote folder_ | Fill in those three fields (or the config file). |
-| _key file not found_ | Computer: check the key name/path and `keysDir`. Phone: use **Import key…**. |
+| _SSH keys are no longer read from files on disk_ | You updated from an older version that used a key file: press **Import key…** once and pick the same key. |
 | _the SSH key is encrypted_ / _wrong SSH key passphrase_ | Enter the (correct) passphrase in **Key passphrase**. |
 | _this is not a usable SSH private key_ | You picked the `.pub` file or a PuTTY `.ppk`; pick the private OpenSSH key. |
 | _authentication failed_ | Is the public key in `~/.ssh/authorized_keys` on the server? Is the user right? |
 | _SERVER KEY CHANGED_ | If the server was really reinstalled, press **Reset** next to **Trusted server key**. Otherwise do **not** connect — something is wrong. |
-| _relay … is not reachable_ (phone) | Is the relay running (`systemctl status obsyncher-relay`)? Is port 8022 open? Is the address right (empty = `ws://<server>:8022`)? Test from a computer: **Connection method → Through the relay** → **Test connection**. |
+| _relay … is not reachable_ (phone) | Is the relay running (`systemctl status syncher-relay`)? Is port 8022 open? Is the address right (empty = `ws://<server>:8022`)? Test from a computer: **Connection method → Through the relay** → **Test connection**. |
 | _N item(s) could not be synced_ | Everything else is synced; see **Not synced** in the settings. Usual causes: a name with `* " \ < > : \| ?` (not allowed on Windows/Android — rename it on the device that created it), two files differing only in letter case (`Note.md` and `note.md` are one file on Windows/Android — rename one), a server folder without read permission. |
 | A file does not appear on another device | Press **Sync now**. Hidden files (starting with a dot) and excluded patterns are not synced by design. |
 | Another device shows ⚠ in **Devices seen on the server** | It runs another plugin version — update it and restart Obsidian there. |
-| Anything else | Desktop: <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>I</kbd> → **Console** shows messages starting with `Obsyncher:`. |
+| Anything else | Desktop: <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>I</kbd> → **Console** shows messages starting with `Syncher:`. |
 
 ## ❓ FAQ
 
@@ -432,7 +428,7 @@ It is built the same way as on Android and should work through the relay, but it
 <summary><b>Is my data stored anywhere else?</b></summary>
 
 No. The only places are your devices and the folder on your server. The plugin keeps some bookkeeping in a hidden
-`.obsyncher` folder inside the server folder (device heartbeats, a change journal, temporary upload files).
+`.syncher` folder inside the server folder (device heartbeats, a change journal, temporary upload files).
 </details>
 
 <details>
@@ -448,6 +444,16 @@ Please don't. Two sync tools on the same vault undo each other's deletions and f
 </details>
 
 <details>
+<summary><b>I used this plugin when it was called "Obsyncher"</b></summary>
+
+The plugin was renamed to Syncher (the Obsidian directory does not allow names containing parts of "Obsidian").
+Install Syncher next to it and enable it: on its first start it takes over the old settings, sync base and
+encrypted passwords, disables the old copy (you can then delete it in **Settings → Community plugins**), and renames
+the old `.obsyncher` metadata folder on the server. If you used a key **file**, press **Import key…** once.
+A relay installed with the old script is replaced automatically when you run `sudo sh server/install-relay.sh` again.
+</details>
+
+<details>
 <summary><b>How do I update?</b></summary>
 
 BRAT updates the plugin automatically. By hand: replace the three files with the ones from the latest release and
@@ -460,13 +466,13 @@ restart Obsidian. The version shown at the top of the plugin settings tells you 
 ```bash
 npm install
 npm run build        # type-check + bundle main.js
-npm run release      # build + copy to dist/obsyncher (checks that all version numbers match CHANGELOG.md)
+npm run release      # build + copy to dist/syncher (checks that all version numbers match CHANGELOG.md)
 npm test             # unit tests + integration tests against a real OpenSSH server (skipped when none is running)
-npm run e2e          # end-to-end test inside a real Obsidian (set OBSYNCHER_OBSIDIAN to its executable)
+npm run e2e          # end-to-end test inside a real Obsidian (set SYNCHER_OBSIDIAN to its executable)
 ```
 
 - Integration tests use a throw-away user-mode sshd: `test/sshd/start-wsl-sshd.sh <keys dir> [port]`
-  (`OBSYNCHER_TEST_SSH=host:port:user`, `OBSYNCHER_TEST_KEYS`, `OBSYNCHER_TEST_WS` for the relay test).
+  (`SYNCHER_TEST_SSH=host:port:user`, `SYNCHER_TEST_KEYS`, `SYNCHER_TEST_WS` for the relay test).
 - Releases: bump the version in `manifest.json`, `package.json` and `versions.json`, add a `CHANGELOG.md` section,
   then push a tag equal to the version — GitHub Actions builds and publishes the release.
 

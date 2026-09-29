@@ -1,8 +1,8 @@
-.obsyncher-status {
+.syncher-status {
 	cursor: pointer;
 }
 
-.obsyncher-ignore {
+.syncher-ignore {
 	max-height: 12em;
 	overflow: auto;
 	font-size: var(--font-ui-smaller);
@@ -12,16 +12,16 @@
 	user-select: text;
 }
 
-.obsyncher-key-input {
+.syncher-key-input {
 	width: 100%;
 	font-family: var(--font-monospace);
 	font-size: var(--font-ui-smaller);
 }
 
-.obsyncher-hidden {
+.syncher-hidden {
 	display: none;
 }
 
-.obsyncher-notice-lines {
+.syncher-notice-lines {
 	white-space: pre-wrap;
 }

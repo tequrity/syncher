@@ -1,6 +1,8 @@
 // Vault-relative path helpers (always '/'-separated, no leading slash).
 
-export const META_DIR = '.obsyncher';
+export const META_DIR = '.syncher';
+/** Metadata folder name used before the plugin was renamed from Obsyncher (migrated on connect). */
+export const LEGACY_META_DIR = '.obsyncher';
 
 export function parentOf(p: string): string {
 	const i = p.lastIndexOf('/');
@@ -24,7 +26,7 @@ export function depth(p: string): number {
 }
 
 /** Hidden files/folders (any segment starting with '.') are never synced:
- * that covers the Obsidian config dir, the plugin's own state, `.obsyncher`, `.trash`, `.git`. */
+ * that covers the Obsidian config dir, the plugin's own state, `.syncher`, `.trash`, `.git`. */
 export function isHidden(p: string): boolean {
 	return p.split('/').some((s) => s.startsWith('.'));
 }

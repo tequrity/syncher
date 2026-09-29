@@ -1,15 +1,16 @@
 import { App, Modal, Notice, Platform, Plugin, Setting, TAbstractFile, TFile, TFolder, requireApiVersion } from 'obsidian';
-import { ConfigManager, KeyNotFoundError } from './config';
+import { CONFIG_FILE, ConfigManager } from './config';
+import { LEGACY_ID, migrateLegacyPlugin } from './migrate';
 import { t } from './i18n';
 import { defaultRelayUrl } from './relay-url';
 import { ObsidianFs, PluginPersistence } from './obsidian-fs';
 import { SecretBox } from './secrets';
-import { DEFAULT_SETTINGS, ObsyncherSettingTab, ObsyncherSettings } from './settings';
+import { DEFAULT_SETTINGS, SyncherSettingTab, SyncherSettings } from './settings';
 import { HostKeyInfo, HostKeyMismatchError, SshAuthError, SshClient } from './ssh/client';
 import { KeyPassphraseError, PrivateKey, parsePrivateKey } from './ssh/keys';
 import { Sftp } from './ssh/sftp';
 import { Duplex, connectTcp, connectWebSocket } from './ssh/socket';
-import { nodeApis } from './node';
+import { nodeNet } from './node';
 import { SyncEngine } from './sync/engine';
 import { RemoteStore } from './sync/remote';
 import { DeviceInfo, SyncStatus } from './sync/types';
@@ -17,8 +18,8 @@ import { DeviceInfo, SyncStatus } from './sync/types';
 /** Errors that retrying cannot fix: wait for the user to change settings. */
 class FatalConnectError extends Error {}
 
-export default class ObsyncherPlugin extends Plugin {
-	settings: ObsyncherSettings = { ...DEFAULT_SETTINGS };
+export default class SyncherPlugin extends Plugin {
+	settings: SyncherSettings = { ...DEFAULT_SETTINGS };
 	config!: ConfigManager;
 	secrets!: SecretBox;
 	engine?: SyncEngine;
@@ -41,9 +42,10 @@ export default class ObsyncherPlugin extends Plugin {
 	private lastConnectError = '';
 
 	async onload(): Promise<void> {
-		await this.loadSettings();
+		const pluginDir = this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
+		await this.loadSettings(pluginDir);
 		this.secrets = new SecretBox(this.app);
-		this.config = new ConfigManager(this.app, this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`);
+		this.config = new ConfigManager(this.app, pluginDir);
 		await this.config.load();
 		this.deviceId = this.ensureDeviceId();
 
@@ -66,23 +68,23 @@ export default class ObsyncherPlugin extends Plugin {
 					const shown = problems.slice(0, 5).map((p) => `• ${p.path || '/'}: ${p.message}`);
 					if (problems.length > shown.length) shown.push('…');
 					const lines = [t('problems', { n: problems.length }), ...shown].join('\n');
-					new Notice(createFragment((el) => el.createDiv({ cls: 'obsyncher-notice-lines', text: lines })), 15000);
+					new Notice(createFragment((el) => el.createDiv({ cls: 'syncher-notice-lines', text: lines })), 15000);
 				},
 				onStatus: (s, detail) => this.setStatus(s, detail),
-				log: (m) => console.debug(`Obsyncher: ${m}`),
+				log: (m) => console.debug(`Syncher: ${m}`),
 				confirmMassDelete: (side, count, total) => confirmModal(this.app, side, count, total),
 			},
 		);
 		await this.engine.init();
 		this.engine.onDisconnect = () => this.scheduleReconnect();
 
-		this.addSettingTab(new ObsyncherSettingTab(this.app, this));
+		this.addSettingTab(new SyncherSettingTab(this.app, this));
 		if (!Platform.isMobile) {
 			this.statusEl = this.addStatusBarItem();
-			this.statusEl.addClass('obsyncher-status');
+			this.statusEl.addClass('syncher-status');
 			this.statusEl.onClickEvent(() => this.syncNow());
 		}
-		this.ribbonEl = this.addRibbonIcon('refresh-cw', 'Obsyncher', () => this.syncNow());
+		this.ribbonEl = this.addRibbonIcon('refresh-cw', 'Syncher', () => this.syncNow());
 		this.addCommand({ id: 'sync-now', name: t('cmdSyncNow'), callback: () => this.syncNow() });
 		this.addCommand({ id: 'reconnect', name: t('cmdReconnect'), callback: () => void this.reconnect() });
 		this.addCommand({
@@ -118,8 +120,17 @@ export default class ObsyncherPlugin extends Plugin {
 
 	// ---------------------------------------------------------------- settings
 
-	async loadSettings(): Promise<void> {
-		const stored = (await this.loadData()) as Partial<ObsyncherSettings> | null;
+	async loadSettings(pluginDir?: string): Promise<void> {
+		let stored = (await this.loadData()) as Partial<SyncherSettings> | null;
+		if (!stored && pluginDir) {
+			// first start after the rename from Syncher: take over its settings and sync base
+			const legacy = await migrateLegacyPlugin(this.app, pluginDir, CONFIG_FILE);
+			if (legacy) {
+				stored = legacy;
+				await this.saveData(stored);
+				new Notice(t('migrated'), 12000);
+			}
+		}
 		this.settings = { ...DEFAULT_SETTINGS, ...(stored ?? {}) };
 	}
 
@@ -128,19 +139,24 @@ export default class ObsyncherPlugin extends Plugin {
 	}
 
 	private ensureDeviceId(): string {
-		let id = this.app.loadLocalStorage('obsyncher-device-id') as string | null;
-		if (!id || !/^[a-z0-9-]{8,}$/.test(id)) {
-			const b = crypto.getRandomValues(new Uint8Array(8));
-			id = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
-			this.app.saveLocalStorage('obsyncher-device-id', id);
+		const valid = (v: unknown): v is string => typeof v === 'string' && /^[a-z0-9-]{8,}$/.test(v);
+		let id: unknown = this.app.loadLocalStorage('syncher-device-id');
+		if (!valid(id)) {
+			// keep the identity the device had under the plugin's former name
+			const legacy: unknown = this.app.loadLocalStorage(`${LEGACY_ID}-device-id`);
+			if (valid(legacy)) id = legacy;
+			else {
+				const b = crypto.getRandomValues(new Uint8Array(8));
+				id = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+			}
+			this.app.saveLocalStorage('syncher-device-id', id);
 		}
-		return id;
+		return id as string;
 	}
 
+	/** A neutral default name: the plugin does not read the computer's name or other system identity. */
 	defaultDeviceName(): string {
-		const host = nodeApis()?.os.hostname();
-		if (host) return host;
-		const kind = Platform.isAndroidApp ? 'Android' : Platform.isIosApp ? 'iOS' : 'Device';
+		const kind = Platform.isAndroidApp ? 'Android' : Platform.isIosApp ? 'iOS' : Platform.isMobile ? 'Mobile' : 'Desktop';
 		return `${kind}-${this.deviceId.slice(0, 4)}`;
 	}
 
@@ -160,7 +176,6 @@ export default class ObsyncherPlugin extends Plugin {
 			host: s.host || c.host,
 			port: s.port || c.port || 22,
 			username: s.username || c.username,
-			keyFile: s.keyFile || c.keyFile,
 			relayUrl: s.relayUrl || c.relayUrl || defaultRelayUrl(s.host || c.host),
 		};
 	}
@@ -304,10 +319,10 @@ export default class ObsyncherPlugin extends Plugin {
 
 	/** Direct TCP where the platform has it (desktop); Obsidian mobile has no TCP API, only WebSocket. */
 	usesRelay(): boolean {
-		return !nodeApis() || this.settings.transport === 'websocket';
+		return !nodeNet() || this.settings.transport === 'websocket';
 	}
 
-	private async openSocket(e: ReturnType<ObsyncherPlugin['effective']>): Promise<Duplex> {
+	private async openSocket(e: ReturnType<SyncherPlugin['effective']>): Promise<Duplex> {
 		if (this.usesRelay()) {
 			if (!e.relayUrl) throw new FatalConnectError(t('noRelay'));
 			try {
@@ -316,19 +331,19 @@ export default class ObsyncherPlugin extends Plugin {
 				throw new Error(t('relayFailed', { url: e.relayUrl, msg: (err as Error).message }));
 			}
 		}
-		const api = nodeApis();
-		if (!api) throw new FatalConnectError(t('noRelay'));
-		return connectTcp(api.net, e.host, e.port, 15000);
+		const net = nodeNet();
+		if (!net) throw new FatalConnectError(t('noRelay'));
+		return connectTcp(net, e.host, e.port, 15000);
 	}
 
-	private async loadKey(keyFile: string): Promise<PrivateKey | undefined> {
-		let text: string;
-		if (this.settings.keyDataEnc) {
-			const k = this.secrets.open('keyDataEnc', this.settings.keyDataEnc);
-			if (k === null) throw new FatalConnectError(t('secretLost'));
-			text = k;
-		} else if (keyFile) text = await this.config.readKey(keyFile);
-		else return undefined;
+	/** The imported key (key files are no longer read from disk: the plugin stays inside the vault). */
+	private loadKey(): PrivateKey | undefined {
+		if (!this.settings.keyDataEnc) {
+			if (this.settings.keyFile) throw new FatalConnectError(t('keyFileRemoved'));
+			return undefined;
+		}
+		const text = this.secrets.open('keyDataEnc', this.settings.keyDataEnc);
+		if (text === null) throw new FatalConnectError(t('secretLost'));
 		const pass = this.secrets.open('keyPassEnc', this.settings.keyPassEnc);
 		if (pass === null) throw new FatalConnectError(t('secretLost'));
 		return parsePrivateKey(text, pass || undefined);
@@ -348,19 +363,17 @@ export default class ObsyncherPlugin extends Plugin {
 		return pinned.split(' ').pop() === info.fingerprint;
 	}
 
-	private async openClient(pin: boolean): Promise<{ client: SshClient; e: ReturnType<ObsyncherPlugin['effective']> }> {
+	private async openClient(pin: boolean): Promise<{ client: SshClient; e: ReturnType<SyncherPlugin['effective']> }> {
 		const e = this.effective();
 		if (!e.host || !e.username || !e.remoteDir) throw new FatalConnectError(t('notConfigured'));
 		const password = this.secrets.open('passwordEnc', this.settings.passwordEnc);
 		if (password === null) throw new FatalConnectError(t('secretLost'));
 		let privateKey: PrivateKey | undefined;
 		try {
-			privateKey = await this.loadKey(e.keyFile);
+			privateKey = this.loadKey();
 		} catch (err) {
 			if (err instanceof KeyPassphraseError)
 				throw new FatalConnectError(t(/required/.test(err.message) ? 'keyPassNeeded' : 'keyPassWrong'));
-			if (err instanceof KeyNotFoundError)
-				throw new FatalConnectError(t(Platform.isMobile ? 'keyNotFoundMobile' : 'keyNotFound', { path: err.path }));
 			if (err instanceof FatalConnectError) throw err;
 			throw new FatalConnectError(t('keyBad', { msg: (err as Error).message }));
 		}
@@ -416,7 +429,7 @@ export default class ObsyncherPlugin extends Plugin {
 		} catch (err) {
 			if (stale()) return;
 			const msg = (err as Error).message;
-			console.error('Obsyncher: connect failed', err);
+			console.error('Syncher: connect failed', err);
 			if (this.client === client) this.client = undefined;
 			client?.close();
 			this.engine?.detach();

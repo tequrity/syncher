@@ -5,7 +5,7 @@
 // protocol and syncs against a simulated second device via the test sshd.
 //
 //   npm run build && node esbuild.config.mjs test && \
-//   OBSYNCHER_OBSIDIAN="<path to Obsidian executable>" node --test test-dist/obsidian.e2e.cjs
+//   SYNCHER_OBSIDIAN="<path to Obsidian executable>" node --test test-dist/obsidian.e2e.cjs
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,10 +15,10 @@ import { join, resolve } from 'path';
 import { Sftp } from '../src/ssh/sftp';
 import { RemoteStore } from '../src/sync/remote';
 import { SyncEngine } from '../src/sync/engine';
-import { KEYS_DIR, TEST_HOST, TEST_PORT, TEST_USER, connect, serverAvailable } from './helpers';
+import { TEST_HOST, TEST_PORT, TEST_USER, connect, serverAvailable, keyText } from './helpers';
 import { MemoryPersistence, NodeFs } from './nodefs';
 
-const OBSIDIAN = process.env.OBSYNCHER_OBSIDIAN;
+const OBSIDIAN = process.env.SYNCHER_OBSIDIAN;
 const ROOT = resolve('.test-tmp/e2e');
 const PORT = 9333;
 
@@ -76,27 +76,27 @@ class Cdp {
 }
 
 test('plugin syncs inside real Obsidian', async (t) => {
-	if (!OBSIDIAN) return t.skip('set OBSYNCHER_OBSIDIAN to the Obsidian executable');
+	if (!OBSIDIAN) return t.skip('set SYNCHER_OBSIDIAN to the Obsidian executable');
 	if (!(await serverAvailable())) return t.skip('test sshd not reachable');
 
 	const c0 = await connect();
 	const s0 = await Sftp.open(c0);
-	const remoteDir = `${await s0.realpath('.')}/.obsyncher-test/vault-e2e`;
+	const remoteDir = `${await s0.realpath('.')}/.syncher-test/vault-e2e`;
 	await s0.rmrf(remoteDir);
 	c0.close();
 
 	// temp vault with the built plugin
 	await fs.rm(ROOT, { recursive: true, force: true });
 	const vault = join(ROOT, 'vault');
-	const pluginDir = join(vault, '.obsidian', 'plugins', 'obsyncher');
+	const pluginDir = join(vault, '.obsidian', 'plugins', 'syncher');
 	await fs.mkdir(pluginDir, { recursive: true });
 	for (const f of ['main.js', 'manifest.json', 'styles.css']) await fs.copyFile(f, join(pluginDir, f));
-	await fs.writeFile(join(pluginDir, 'obsyncher.config.json'), JSON.stringify({ keysDir: KEYS_DIR, host: TEST_HOST, port: TEST_PORT, username: TEST_USER }));
+	await fs.writeFile(join(pluginDir, 'syncher.config.json'), JSON.stringify({ host: TEST_HOST, port: TEST_PORT, username: TEST_USER }));
 	await fs.writeFile(
 		join(pluginDir, 'data.json'),
-		JSON.stringify({ remoteDir, keyFile: 'id_ed25519', deviceName: 'E2E-Obsidian', pollSeconds: 1, debounceMs: 300 }),
+		JSON.stringify({ remoteDir, deviceName: 'E2E-Obsidian', pollSeconds: 1, debounceMs: 300 }),
 	);
-	await fs.writeFile(join(vault, '.obsidian', 'community-plugins.json'), JSON.stringify(['obsyncher']));
+	await fs.writeFile(join(vault, '.obsidian', 'community-plugins.json'), JSON.stringify(['syncher']));
 	await fs.writeFile(join(vault, 'Welcome.md'), 'local note');
 	const userData = join(ROOT, 'userdata');
 	await fs.mkdir(userData, { recursive: true });
@@ -125,8 +125,10 @@ test('plugin syncs inside real Obsidian', async (t) => {
 	try {
 		await cdp.until('return !!window.app?.workspace?.layoutReady', 'workspace', 60000);
 		// leave restricted mode and enable the plugin (what the user does once by hand)
-		await cdp.eval(`app.plugins.setEnable(true); await app.plugins.loadManifests(); await app.plugins.enablePluginAndSave('obsyncher'); return true;`);
-		await cdp.until(`return app.plugins.plugins.obsyncher?.engine?.connected`, 'plugin connected', 30000);
+		await cdp.eval(`app.plugins.setEnable(true); await app.plugins.loadManifests(); await app.plugins.enablePluginAndSave('syncher'); return true;`);
+		// import the SSH key the way a user does (sealed on this device), then connect
+		await cdp.eval(`const p = app.plugins.plugins.syncher; p.settings.keyDataEnc = p.secrets.seal('keyDataEnc', ${JSON.stringify(keyText('id_ed25519'))}); await p.saveSettings(); await p.reconnect(); return true;`);
+		await cdp.until(`return app.plugins.plugins.syncher?.engine?.connected`, 'plugin connected', 30000);
 
 		// Obsidian -> server -> device B
 		await b.attach(await RemoteStore.open(await Sftp.open(cb), remoteDir, 'id-b'));
@@ -161,17 +163,17 @@ test('plugin syncs inside real Obsidian', async (t) => {
 		assert.equal(await devFs.stat('Typed in Obsidian.md'), null);
 
 		// device B deletes while both are online -> pop-up in Obsidian
-		if (process.env.OBSYNCHER_TEST_VERBOSE)
-			await cdp.eval(`const cb = app.plugins.plugins.obsyncher.engine.cb; const orig = cb.onRemoteDelete; window.__obs = [];
+		if (process.env.SYNCHER_TEST_VERBOSE)
+			await cdp.eval(`const cb = app.plugins.plugins.syncher.engine.cb; const orig = cb.onRemoteDelete; window.__obs = [];
 				cb.log = (m) => window.__obs.push(m); cb.onRemoteDelete = (...a) => { window.__obs.push('NOTIFY ' + a.join(',')); try { orig(...a); window.__obs.push('orig ok') } catch (e) { window.__obs.push('ERR ' + e.stack) } }; return 1;`);
 		await fs.rm(join(devFs.root, 'Welcome.md'));
 		b.localDeleted('Welcome.md', false);
 		await b.whenIdle();
 		await cdp.until(`return !app.vault.getAbstractFileByPath('Welcome.md')`, 'Welcome.md deleted');
-		if (process.env.OBSYNCHER_TEST_VERBOSE)
+		if (process.env.SYNCHER_TEST_VERBOSE)
 			console.log(
 				await cdp.eval(
-					`const e = app.plugins.plugins.obsyncher.engine; return JSON.stringify({aw: activeWindow === window, notices: [...activeWindow.document.querySelectorAll('.notice-container, .notice')].map(n => n.className + ':' + n.textContent), log: window.__obs, devs: e.devices, online: e.devices.map(d => e.isOnline(d)), now: e.remote?.serverNow(), notify: app.plugins.plugins.obsyncher.settings.notifyDeletes})`,
+					`const e = app.plugins.plugins.syncher.engine; return JSON.stringify({aw: activeWindow === window, notices: [...activeWindow.document.querySelectorAll('.notice-container, .notice')].map(n => n.className + ':' + n.textContent), log: window.__obs, devs: e.devices, online: e.devices.map(d => e.isOnline(d)), now: e.remote?.serverNow(), notify: app.plugins.plugins.syncher.settings.notifyDeletes})`,
 				),
 			);
 		const notices = await cdp.until<string>(
@@ -182,7 +184,7 @@ test('plugin syncs inside real Obsidian', async (t) => {
 		assert.match(notices, /Welcome\.md/);
 
 		// state (hash file) is written locally and never uploaded
-		await cdp.until(`return await app.vault.adapter.exists('.obsidian/plugins/obsyncher/state.json')`, 'state.json');
+		await cdp.until(`return await app.vault.adapter.exists('.obsidian/plugins/syncher/state.json')`, 'state.json');
 		assert.equal(await devFs.stat('.obsidian'), null);
 	} finally {
 		cb.close();

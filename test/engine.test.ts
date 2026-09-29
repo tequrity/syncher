@@ -54,7 +54,7 @@ class Device {
 					this.massDeleteAsked++;
 					return this.massDeleteAnswer;
 				},
-				log: (m) => process.env.OBSYNCHER_TEST_VERBOSE && console.log(`[${name}] ${m}`),
+				log: (m) => process.env.SYNCHER_TEST_VERBOSE && console.log(`[${name}] ${m}`),
 			},
 		);
 	}
@@ -121,7 +121,7 @@ class Device {
 async function freshRemote(name: string): Promise<string> {
 	const c = await connect();
 	const s = await Sftp.open(c);
-	const dir = `${await s.realpath('.')}/.obsyncher-test/vault-${name}`;
+	const dir = `${await s.realpath('.')}/.syncher-test/vault-${name}`;
 	await s.rmrf(dir);
 	c.close();
 	return dir;
@@ -476,4 +476,21 @@ scenario('a stale copy without base does not resurrect a file another device del
 	assert.equal(await a.read('old.md'), null);
 	assert.equal(await a.read('fresh.md'), 'edited after the delete');
 	return [a, b];
+});
+
+scenario('a server folder synced by the plugin under its former name keeps its metadata', async () => {
+	const [a] = await devices('legacymeta', ['A']);
+	await onRemote(async (s) => {
+		await s.mkdirp(`${a.remoteDir}/.obsyncher`);
+		await s.writeFile(`${a.remoteDir}/.obsyncher/vault.json`, enc(JSON.stringify({ id: 'legacy-vault-id', created: 1 })));
+	});
+	await a.connect();
+	assert.ok(a.engine.connected);
+	const moved = await onRemote(async (s) => ({
+		legacy: await s.exists(`${a.remoteDir}/.obsyncher`),
+		vault: new TextDecoder().decode((await s.readFile(`${a.remoteDir}/.syncher/vault.json`)).data),
+	}));
+	assert.equal(moved.legacy, null);
+	assert.match(moved.vault, /legacy-vault-id/);
+	return [a];
 });

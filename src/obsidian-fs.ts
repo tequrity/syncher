@@ -125,7 +125,7 @@ export class PluginPersistence implements Persistence {
 			if (!(await a.exists(this.p(name)))) return null;
 			return JSON.parse(await a.read(this.p(name))) as T;
 		} catch (e) {
-			console.error(`Obsyncher: cannot read ${name}`, e);
+			console.error(`Syncher: cannot read ${name}`, e);
 			return null;
 		}
 	}

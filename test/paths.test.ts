@@ -11,7 +11,7 @@ test('*.old naming', () => {
 
 test('filter: hidden paths and user patterns', () => {
 	const f = new PathFilter(['Private/**', '*.tmp', '# comment', '']);
-	for (const p of ['.obsidian/app.json', 'a/.git/x', '.obsyncher', 'Private', 'Private/x.md', 'x.tmp', 'a/b.tmp'])
+	for (const p of ['.obsidian/app.json', 'a/.git/x', '.syncher', 'Private', 'Private/x.md', 'x.tmp', 'a/b.tmp'])
 		assert.ok(f.excluded(p), p);
 	for (const p of ['note.md', 'Privateer/x.md', 'a/b.md', 'tmp.md']) assert.ok(!f.excluded(p), p);
 });

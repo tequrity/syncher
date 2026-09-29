@@ -51,7 +51,7 @@ export interface FileEntry {
 export interface SyncState {
 	v: 1;
 	deviceId: string;
-	/** id of the remote vault this state belongs to (`.obsyncher/vault.json`) */
+	/** id of the remote vault this state belongs to (`.syncher/vault.json`) */
 	remoteVaultId?: string;
 	files: Record<string, FileEntry>;
 	folders: Record<string, true>;

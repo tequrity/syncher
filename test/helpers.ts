@@ -1,6 +1,6 @@
 // Shared helpers for integration tests against a real OpenSSH server.
-// Configure with env OBSYNCHER_TEST_SSH="host:port:user" (default 127.0.0.1:2299:<USER>)
-// and OBSYNCHER_TEST_KEYS (default .test-tmp/keys). See test/sshd/start-wsl-sshd.sh.
+// Configure with env SYNCHER_TEST_SSH="host:port:user" (default 127.0.0.1:2299:<USER>)
+// and SYNCHER_TEST_KEYS (default .test-tmp/keys). See test/sshd/start-wsl-sshd.sh.
 
 import { readFileSync } from 'fs';
 import * as net from 'net';
@@ -13,11 +13,11 @@ import { connectTcp } from '../src/ssh/socket';
 // The plugin uses window timers (Obsidian popout-window rule); Node has no window object.
 (globalThis as { window?: unknown }).window ??= globalThis;
 
-const [host, portStr, user] = (process.env.OBSYNCHER_TEST_SSH ?? `127.0.0.1:2299:${process.env.USER ?? process.env.USERNAME ?? 'user'}`).split(':');
+const [host, portStr, user] = (process.env.SYNCHER_TEST_SSH ?? `127.0.0.1:2299:${process.env.USER ?? process.env.USERNAME ?? 'user'}`).split(':');
 export const TEST_HOST = host;
 export const TEST_PORT = Number(portStr);
 export const TEST_USER = user;
-export const KEYS_DIR = resolve(process.env.OBSYNCHER_TEST_KEYS ?? '.test-tmp/keys');
+export const KEYS_DIR = resolve(process.env.SYNCHER_TEST_KEYS ?? '.test-tmp/keys');
 
 export function keyText(name: string): string {
 	return readFileSync(join(KEYS_DIR, name), 'utf8');

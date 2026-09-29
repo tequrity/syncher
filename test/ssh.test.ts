@@ -51,7 +51,7 @@ for (const [cipher, mac] of CIPHERS) {
 				const data = new Uint8Array(3 * 1024 * 1024 + 123);
 				for (let i = 0; i < data.length; i += 65536) crypto.getRandomValues(data.subarray(i, i + 65536));
 				const home = await s.realpath('.');
-				const p = `${home}/.obsyncher-test/blob-${cipher}`;
+				const p = `${home}/.syncher-test/blob-${cipher}`;
 				await s.writeFile(p, data, { mtime: 1700000000 });
 				const back = await s.readFile(p);
 				assert.equal(back.attrs.mtime, 1700000000);
@@ -91,7 +91,7 @@ itSsh('host key rejection aborts', async () => {
 
 itSsh('sftp directory ops, rename, append', async () => {
 	await withSftp(async (s: Sftp) => {
-		const base = `${await s.realpath('.')}/.obsyncher-test/ops`;
+		const base = `${await s.realpath('.')}/.syncher-test/ops`;
 		await s.rmrf(base);
 		await s.mkdirp(`${base}/a/b/c`);
 		assert.ok(isDir(await s.stat(`${base}/a/b`)));

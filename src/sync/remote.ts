@@ -2,14 +2,14 @@
 //
 // Layout on the server:
 //   <remoteDir>/...                       the vault files (mirror)
-//   <remoteDir>/.obsyncher/vault.json     remote vault id
-//   <remoteDir>/.obsyncher/devices/<id>.json   heartbeat / presence of each device
-//   <remoteDir>/.obsyncher/journal/<id>.<epoch>.jsonl   append-only change log, one writer per file
-//   <remoteDir>/.obsyncher/tmp/           staging area for atomic uploads
+//   <remoteDir>/.syncher/vault.json     remote vault id
+//   <remoteDir>/.syncher/devices/<id>.json   heartbeat / presence of each device
+//   <remoteDir>/.syncher/journal/<id>.<epoch>.jsonl   append-only change log, one writer per file
+//   <remoteDir>/.syncher/tmp/           staging area for atomic uploads
 
 import { Attrs, Sftp, SftpError, isDir, isNoSuchFile } from '../ssh/sftp';
 import { fromUtf8, utf8 } from '../ssh/buffer';
-import { META_DIR, PathFilter, parentOf } from './paths';
+import { LEGACY_META_DIR, META_DIR, PathFilter, parentOf } from './paths';
 import { DeviceInfo, JournalEvent, RemoteStat } from './types';
 
 /** Concurrent directory listings during a scan. */
@@ -55,6 +55,11 @@ export class RemoteStore {
 		else if (!dir.startsWith('/')) dir = `${home}/${dir}`;
 		await sftp.mkdirp(dir);
 		const store = new RemoteStore(sftp, dir, deviceId);
+		// keep the vault id, journals and device list of a folder synced under the plugin's former name
+		if (!(await sftp.exists(store.meta))) {
+			const legacy = `${dir}/${LEGACY_META_DIR}`;
+			if (await sftp.exists(legacy)) await sftp.rename(legacy, store.meta, false).catch(() => undefined);
+		}
 		for (const d of ['devices', 'journal', 'tmp']) await sftp.mkdirp(`${store.meta}/${d}`);
 		return store;
 	}
@@ -144,7 +149,7 @@ export class RemoteStore {
 		return { data, stat: toStat(attrs) };
 	}
 
-	/** Atomic upload: stage in .obsyncher/tmp, then rename over the target. */
+	/** Atomic upload: stage in .syncher/tmp, then rename over the target. */
 	async write(p: string, data: Uint8Array, mtimeSec: number): Promise<RemoteStat> {
 		const tmp = `${this.meta}/tmp/${this.deviceId}-${randomId(6)}`;
 		const parent = parentOf(p);

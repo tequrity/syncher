@@ -9,6 +9,9 @@ on:
 
 permissions:
   contents: write
+  # signed build provenance for the release assets (GitHub artifact attestations)
+  id-token: write
+  attestations: write
 
 jobs:
   release:
@@ -33,12 +36,20 @@ jobs:
           npm ci
           npm run release
 
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            main.js
+            manifest.json
+            styles.css
+
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           notes=$(awk -v v="${GITHUB_REF_NAME}" 'index($0, "## [" v "]") == 1 {f=1; next} f && index($0, "## [") == 1 {exit} f' CHANGELOG.md)
           gh release create "${GITHUB_REF_NAME}" \
-            --title "Obsyncher ${GITHUB_REF_NAME}" \
+            --title "Syncher ${GITHUB_REF_NAME}" \
             --notes "$notes" \
             main.js manifest.json styles.css

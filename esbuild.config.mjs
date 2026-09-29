@@ -23,7 +23,7 @@ if (mode === 'test') {
 	});
 } else {
 	const ctx = await esbuild.context({
-		banner: { js: '/* Obsyncher — SSH/SFTP live sync for Obsidian. Bundled by esbuild. */' },
+		banner: { js: '/* Syncher — SSH/SFTP live sync for Obsidian. Bundled by esbuild. */' },
 		entryPoints: ['src/main.ts'],
 		bundle: true,
 		external: ['obsidian', 'electron', '@codemirror/*', '@lezer/*', ...builtins],

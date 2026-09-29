@@ -9,6 +9,27 @@ and a section of this file; `npm run release` refuses to build when they disagre
 shown in the plugin settings header ("Obsyncher vX.Y.Z") and in the status bar tooltip, and every device
 publishes its version so the others can see it under "Devices seen on the server".
 
+## [0.3.0] — 2026-09-29
+
+**Renamed from Obsyncher to Syncher** (plugin id `syncher`): the Obsidian directory rejects plugin names that contain
+parts of "Obsidian". The repository moved to `github.com/tequrity/syncher`.
+
+### Changed
+- New name everywhere: plugin id and name, UI texts, the server metadata folder (`.syncher`), the relay
+  (`server/syncher-relay.py`, service `syncher-relay`), the config file (`syncher.config.json`), `dist/syncher`.
+- **SSH keys are no longer read from files on disk.** The key is imported once in the settings
+  (**Import key…** — file picker or pasted text) and stored encrypted. The "Key file" setting and the `keysDir`/`keyFile`
+  config entries are gone, so the plugin never reads files outside the vault.
+- The default device name no longer uses the computer's name (`Desktop-xxxx` / `Android-xxxx` instead); the plugin
+  reads no system identity information.
+
+### Added
+- **Automatic migration from Obsyncher:** on its first start Syncher takes over the old plugin's settings, sync base,
+  `sync_ignore` and config, keeps the device identity and the encrypted secrets (old master key id and HKDF label are
+  still accepted), disables the old plugin, and renames the server's `.obsyncher` folder to `.syncher`.
+  `install-relay.sh` removes a relay installed under the old name.
+- Signed build provenance (GitHub artifact attestations) for the release assets.
+
 ## [0.2.1] — 2026-09-29
 
 Prepared for the Obsidian community plugin directory: the code now passes the official

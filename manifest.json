@@ -1,7 +1,7 @@
 {
-	"id": "obsyncher",
-	"name": "Obsyncher",
-	"version": "0.2.1",
+	"id": "syncher",
+	"name": "Syncher",
+	"version": "0.3.0",
 	"minAppVersion": "1.8.7",
 	"description": "Live two-way sync of your vault with a folder on your own server over SSH and SFTP. Works on Windows, Linux and Android.",
 	"author": "Mr.Racoon",
