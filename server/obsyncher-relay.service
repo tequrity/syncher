@@ -1,0 +1,21 @@
+# systemd unit for the Obsyncher WebSocket relay (needed only for Android).
+# Install / reinstall / remove with server/install-relay.sh (see README):
+#   sudo sh server/install-relay.sh [--port 8022] [--target 127.0.0.1:22]
+#   sudo sh server/install-relay.sh --uninstall
+[Unit]
+Description=Obsyncher WebSocket to SSH relay
+After=network-online.target ssh.service sshd.service
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/env python3 /usr/local/bin/obsyncher-relay --listen 0.0.0.0:8022 --target 127.0.0.1:22
+Restart=always
+RestartSec=3
+DynamicUser=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

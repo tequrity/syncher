@@ -1,0 +1,45 @@
+{
+  "name": "obsyncher",
+  "version": "0.2.0",
+  "description": "Obsidian plugin: live SSH/SFTP vault sync between devices (Windows, Linux, Android)",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "test": "node esbuild.config.mjs test && node --test test-dist/*.test.cjs",
+    "release": "npm run build && node scripts/release.mjs",
+    "e2e": "npm run build && node esbuild.config.mjs test && node --test test-dist/obsidian.e2e.cjs"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "builtin-modules": "^5.4.0",
+    "esbuild": "^0.28.2",
+    "obsidian": "^1.13.1",
+    "tslib": "^2.8.1",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "@noble/ciphers": "^2.4.0",
+    "@noble/curves": "^2.4.0",
+    "@noble/hashes": "^2.4.0",
+    "bcrypt-pbkdf": "^1.0.2"
+  },
+  "author": "Mr.Racoon",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tequrity/obsyncher.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tequrity/obsyncher/issues"
+  },
+  "homepage": "https://github.com/tequrity/obsyncher#readme",
+  "keywords": [
+    "obsidian",
+    "obsidian-plugin",
+    "sync",
+    "ssh",
+    "sftp"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+	"id": "obsyncher",
+	"name": "Obsyncher",
+	"version": "0.2.0",
+	"minAppVersion": "1.5.0",
+	"description": "Live two-way sync of your vault with a folder on your own server over SSH/SFTP. Works on Windows, Linux and Android.",
+	"author": "Mr.Racoon",
+	"authorUrl": "https://github.com/tequrity",
+	"isDesktopOnly": false
+}
